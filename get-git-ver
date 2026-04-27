@@ -5,29 +5,13 @@ get_github_ver() {
     local repo=$2
     local ua="User-Agent: Arch-Check-Script"
 
-    # Get default branch (follow redirects with -L)
-    local branch
-    branch=$(curl -sfL -H "$ua" "https://api.github.com/repos/$owner/$repo" \
-        | jq -r '.default_branch // "master"')
-    [[ -z "$branch" || "$branch" == "null" ]] && branch="master"
+    local tag
+    tag=$(curl -sfL -H "$ua" "https://api.github.com/repos/$owner/$repo/releases/latest" \
+        | jq -r '.tag_name // empty')
+    [[ -z "$tag" || "$tag" == "null" ]] && { echo "error"; return 1; }
 
-    # Get latest commit SHA (fix: jq .sha[:8] doesn't work — use cut instead)
-    local hash
-    hash=$(curl -sfL -H "$ua" "https://api.github.com/repos/$owner/$repo/commits/$branch" \
-        | jq -r '.sha // empty' | cut -c1-8)
-    [[ -z "$hash" ]] && { echo "error"; return 1; }
-
-    # Get commit count via Link header pagination trick
-    # Fix: HTTP headers have \r\n — strip \r before grepping
-    local link
-    link=$(curl -sfLI -H "$ua" \
-        "https://api.github.com/repos/$owner/$repo/commits?per_page=1&sha=$branch" \
-        | tr -d '\r')
-    local revcount
-    revcount=$(echo "$link" | grep -i '^link:' | grep -oP '\bpage=\K\d+(?=>; rel="last")')
-
-    [[ -z "$revcount" ]] && { echo "r?.${hash}"; return; }
-    echo "r${revcount}.${hash}"
+    # Strip leading 'b' prefix from tag (e.g. b8952 -> 8952)
+    echo "${tag#b}"
 }
 
 # Format: "owner/repo:path/to/PKGBUILD"
@@ -55,7 +39,7 @@ for entry in "${REPOS[@]}"; do
     current=$(grep -oP '^pkgver=\K\S+' "$pkgbuild_abs" 2>/dev/null || echo "unknown")
     latest=$(get_github_ver "$owner" "$repo")
 
-    if [[ "$latest" == "error" || "$latest" == r?.* ]]; then
+    if [[ "$latest" == "error" ]]; then
         printf "%-25s  %-22s  (fetch error)\n" "$repo" "$current"
     elif [[ "$current" == "$latest" ]]; then
         printf "%-25s  %-22s  (up-to-date)\n" "$repo" "$current"
@@ -102,7 +86,7 @@ if [[ "$1" == "upgrade" ]]; then
         pkgbuild_abs="${OUTDATED_PKGBUILDS[$i]}"
         new_ver="${OUTDATED_LATEST[$i]}"
 
-        if [[ "$new_ver" == "error" || "$new_ver" == r?.* ]]; then
+        if [[ "$new_ver" == "error" ]]; then
             echo "==> $repo: skipping — invalid version '${new_ver}'"
             continue
         fi

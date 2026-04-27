@@ -1,25 +1,19 @@
 # Maintainer: pro100Andrey
-pkgname=llama-cpp-git
-pkgver=r8952.983ca899
+pkgname=llama-cpp
+pkgver=8952
 pkgrel=1
 pkgdesc="LLM inference in C/C++ (Optimized for Zen4 + Vulkan)"
 arch=('x86_64')
 url="https://github.com/ggml-org/llama.cpp"
 license=('MIT')
 depends=('vulkan-icd-loader' 'gcc-libs' 'glibc')
-makedepends=('git' 'cmake' 'ninja' 'vulkan-headers')
-provides=('llama-cpp')
-conflicts=('llama-cpp')
-source=('git+https://github.com/ggml-org/llama.cpp.git')
+makedepends=('cmake' 'ninja' 'vulkan-headers')
+conflicts=('llama-cpp-git')
+source=("llama.cpp-${pkgver}.tar.gz::https://github.com/ggml-org/llama.cpp/archive/refs/tags/b${pkgver}.tar.gz")
 sha256sums=('SKIP')
 
-pkgver() {
-  cd llama.cpp
-  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
-}
-
 build() {
-  cmake -B build -S llama.cpp -G Ninja \
+  cmake -B build -S "llama.cpp-b${pkgver}" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DGGML_VULKAN=ON \
@@ -31,11 +25,11 @@ build() {
     -DGGML_LTO=ON \
     -DCMAKE_C_FLAGS="-march=znver4 -O3" \
     -DCMAKE_CXX_FLAGS="-march=znver4 -O3"
-    
+
   cmake --build build
 }
 
 package() {
   DESTDIR="$pkgdir" cmake --install build
-  install -Dm644 llama.cpp/LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "llama.cpp-b${pkgver}/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
