@@ -4,13 +4,13 @@ pkgver=r8952.983ca899
 pkgrel=1
 pkgdesc="LLM inference in C/C++ (Optimized for Zen4 + Vulkan)"
 arch=('x86_64')
-url="https://github.com/ggerganov/llama.cpp"
+url="https://github.com/ggml-org/llama.cpp"
 license=('MIT')
-depends=('vulkan-icd-loader' 'gcc-libs' 'glibc' 'mimalloc')
+depends=('vulkan-icd-loader' 'gcc-libs' 'glibc')
 makedepends=('git' 'cmake' 'ninja' 'vulkan-headers')
 provides=('llama-cpp')
 conflicts=('llama-cpp')
-source=('git+https://github.com/ggerganov/llama.cpp.git')
+source=('git+https://github.com/ggml-org/llama.cpp.git')
 sha256sums=('SKIP')
 
 pkgver() {
@@ -28,7 +28,6 @@ build() {
     -DGGML_AVX512_VBMI=ON \
     -DGGML_AVX512_VNNI=ON \
     -DGGML_AVX512_BF16=ON \
-    -DGGML_MIMALLOC=ON \
     -DGGML_LTO=ON \
     -DCMAKE_C_FLAGS="-march=znver4 -O3" \
     -DCMAKE_CXX_FLAGS="-march=znver4 -O3"

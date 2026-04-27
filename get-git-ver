@@ -32,7 +32,7 @@ get_github_ver() {
 
 # Format: "owner/repo:path/to/PKGBUILD"
 REPOS=(
-    "ggerganov/llama.cpp:llama-pkg/PKGBUILD"
+    "ggml-org/llama.cpp:llama-pkg/PKGBUILD"
 )
 
 # Collect status for all repos
