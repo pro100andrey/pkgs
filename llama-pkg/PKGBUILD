@@ -10,7 +10,7 @@ depends=('vulkan-icd-loader' 'gcc-libs' 'glibc')
 makedepends=('git' 'cmake' 'ninja' 'vulkan-headers')
 provides=('llama-cpp')
 conflicts=('llama-cpp')
-source=('git+https://github.com/ggml-org/llama.cpp.git#section=fragment=shallow')
+source=('git+https://github.com/ggml-org/llama.cpp.git')
 sha256sums=('SKIP')
 
 pkgver() {
