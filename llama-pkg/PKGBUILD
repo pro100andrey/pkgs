@@ -16,6 +16,7 @@ sha256sums=('SKIP')
 build() {
   cmake -B build -S "llama.cpp-b${pkgver}" -G Ninja \
     --log-level=WARNING \
+    -DLLAMA_BUILD_TESTS=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DGGML_VULKAN=ON \
