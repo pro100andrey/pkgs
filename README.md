@@ -4,5 +4,5 @@
 
 ```sh
 cd llama-pkg
-makepkg -si --cleanbuild
+makepkg -sic
 ```
