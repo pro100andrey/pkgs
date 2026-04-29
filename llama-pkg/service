@@ -38,6 +38,9 @@ function cmd_install {
 
     sed -i "s|USER_TARGET|$target_user|g" "$SERVICE_DEST"
 
+    local target_home="$(getent passwd "$target_user" | cut -d: -f6)"
+    sed -i "s|HOME_TARGET|$target_home|g" "$SERVICE_DEST"
+
     mkdir -p /etc/pacman.d/hooks
     cp "$HOOK_SRC" "$HOOK_DEST"
 

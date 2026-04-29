@@ -8,7 +8,7 @@ Group=USER_TARGET
 Type=simple
 
 ExecStart=/usr/bin/llama-server \
-  --models-preset %h/.llama.cpp/models.ini \
+  --models-preset HOME_TARGET/.llama.cpp/models.ini \
   --host 0.0.0.0 \
   --port 8080
 
