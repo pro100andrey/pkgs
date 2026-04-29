@@ -27,7 +27,7 @@ function main {
 
     prepare_dirs
 
-    if [[ "$1" == "config" ]]; then
+    if [[ "${1:-}" == "config" ]]; then
         install_models_ini
     else
         install_packages
