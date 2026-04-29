@@ -1,22 +1,22 @@
 #!/bin/bash
 
 function prepare_dirs {
-   declare models_path="$HOME/.llama.cpp/models"
-   mkdir -p "$models_path"
+   mkdir -p "$HOME/.llama.cpp/models"
 }
 
-function install_config() {
-    declare -A config_files=(
-        ["models.ini"]="$HOME/.llama.cpp/models.ini"
-    )
+function install_models_ini {
+    local source_models_ini="$(dirname "$0")/configs/models.ini"
+    local target_models_ini="$HOME/.llama.cpp/models.ini"
+    local full_models_path="$HOME/.llama.cpp/models"
 
-    for config_file in "${!config_files[@]}"; do
-        local target_path="${config_files[$config_file]}"
-        cp -u "$(dirname "$0")/configs/$config_file" "$target_path"
-        echo "Config file '$target_path' installed/updated."
-    done
+    # Create or update the models.ini file
+    cp -u "$source_models_ini" "$target_models_ini"
+  
+    # Replace the placeholder with the actual path
+    sed -i "s|TARGET_PATH|$full_models_path|g" "$target_models_ini"
+
+    echo "Config file '$target_models_ini' patched with absolute paths."
 }
-
 
 function install_packages() {
     makepkg -sic
@@ -27,10 +27,10 @@ function main {
     prepare_dirs
 
     if [[ "$1" == "config" ]]; then
-        install_config
+        install_models_ini
     else
         install_packages
-        install_config
+        install_models_ini
     fi
 }   
 
