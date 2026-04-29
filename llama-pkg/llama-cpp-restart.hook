@@ -1,0 +1,9 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = llama-cpp
+
+[Action]
+Description = Restarting llama-server after update...
+When = PostTransaction
+Exec = /usr/bin/systemctl try-restart llama-server.service
