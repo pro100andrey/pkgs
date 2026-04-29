@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 get_github_ver() {
     local owner=$1
@@ -20,10 +21,10 @@ REPOS=(
 )
 
 # Collect status for all repos
-declare -a OUTDATED_REPOS
-declare -a OUTDATED_PKGBUILDS
-declare -a OUTDATED_CURRENT
-declare -a OUTDATED_LATEST
+declare -a OUTDATED_REPOS=()
+declare -a OUTDATED_PKGBUILDS=()
+declare -a OUTDATED_CURRENT=()
+declare -a OUTDATED_LATEST=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

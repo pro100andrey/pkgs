@@ -66,9 +66,10 @@ function cmd_uninstall {
 function cmd_start { systemctl start "$SERVICE_NAME"; }
 function cmd_stop { systemctl stop "$SERVICE_NAME"; }
 function cmd_status { systemctl status "$SERVICE_NAME"; }
+function cmd_logs { journalctl -u "$SERVICE_NAME" -f; }
 
 function usage {
-    echo "Usage: $(basename "$0") {install|uninstall|start|stop|status}"
+    echo "Usage: $(basename "$0") {install|uninstall|start|stop|status|logs}"
     exit 1
 }
 
@@ -79,6 +80,7 @@ function main {
         start)     cmd_start ;;
         stop)      cmd_stop ;;
         status)    cmd_status ;;
+        logs)      cmd_logs ;;
         *)         usage ;;
     esac
 }
