@@ -1,0 +1,78 @@
+#!/bin/bash
+set -euo pipefail
+
+readonly SERVICE_NAME="llama-server"
+readonly SERVICE_FILE="llama-server.service"
+readonly HOOK_FILE="llama-cpp-restart.hook"
+readonly SCRIPT_DIR="$(dirname "$0")"
+
+readonly SERVICE_SRC="$SCRIPT_DIR/services/$SERVICE_FILE"
+readonly HOOK_SRC="$SCRIPT_DIR/services/$HOOK_FILE"
+
+readonly SERVICE_DEST="/etc/systemd/system/$SERVICE_FILE"
+readonly HOOK_DEST="/etc/pacman.d/hooks/$HOOK_FILE"
+
+function check_root {
+    if [[ "$EUID" -ne 0 ]]; then
+        echo "Error: This command must be run as root (use sudo)." >&2
+        exit 1
+    fi
+}
+
+function cmd_install {
+    check_root
+
+    if [[ ! -f "$SERVICE_SRC" || ! -f "$HOOK_SRC" ]]; then
+        echo "Error: Source files not found in $SCRIPT_DIR/services/" >&2
+        exit 1
+    fi
+
+    local target_user="${SUDO_USER:-$USER}"
+
+    cp "$SERVICE_SRC" "$SERVICE_DEST"
+
+    sed -i "s|USER_TARGET|$target_user|g" "$SERVICE_DEST"
+
+    mkdir -p /etc/pacman.d/hooks
+    cp "$HOOK_SRC" "$HOOK_DEST"
+
+    systemctl daemon-reload
+    systemctl enable --now "$SERVICE_NAME"
+
+    echo "Service installed for user '$target_user' and started."
+}
+
+function cmd_uninstall {
+    check_root
+
+    systemctl disable --now "$SERVICE_NAME" 2>/dev/null || true
+
+    rm -f "$SERVICE_DEST"
+    rm -f "$HOOK_DEST"
+
+    systemctl daemon-reload
+
+    echo "Service uninstalled."
+}
+
+function cmd_start { systemctl start "$SERVICE_NAME"; }
+function cmd_stop { systemctl stop "$SERVICE_NAME"; }
+function cmd_status { systemctl status "$SERVICE_NAME"; }
+
+function usage {
+    echo "Usage: $(basename "$0") {install|uninstall|start|stop|status}"
+    exit 1
+}
+
+function main {
+    case "$1" in
+        install)   cmd_install ;;
+        uninstall) cmd_uninstall ;;
+        start)     cmd_start ;;
+        stop)      cmd_stop ;;
+        status)    cmd_status ;;
+        *)         usage ;;
+    esac
+}
+
+main "$@"

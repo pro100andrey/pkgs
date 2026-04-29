@@ -3,20 +3,14 @@ Description=Llama.cpp Server Service
 After=network.target
 
 [Service]
-User=ваш_логин
-Group=ваш_логин
+User=USER_TARGET
+Group=USER_TARGET
 Type=simple
 
 ExecStart=/usr/bin/llama-server \
-  --models-dir models\
-  --ctx-size ${CTX_SIZE} \
-  --threads ${THREADS} \
-  --threads-batch ${THREADS} \
-  --batch-size ${BATCH_SIZE} \
-  --ubatch-size ${UBATCH_SIZE} \
-  --port ${PORT} \
-  --host ${HOST} \
-  ${EXTRA_OPTS}
+  --models-preset %h/.llama.cpp/models.ini \
+  --host 0.0.0.0 \
+  --port 8080
 
 Restart=on-failure
 RestartSec=5

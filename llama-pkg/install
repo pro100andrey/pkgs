@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 function prepare_dirs {
    mkdir -p "$HOME/.llama.cpp/models"
 }
