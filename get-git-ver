@@ -55,7 +55,7 @@ for entry in "${REPOS[@]}"; do
 done
 
 # --upgrade mode: ask user which packages to build
-if [[ "$1" == "upgrade" ]]; then
+if [[ "${1:-}" == "upgrade" ]]; then
     if [[ ${#OUTDATED_REPOS[@]} -eq 0 ]]; then
         echo -e "\nAll packages are up-to-date."
         exit 0
