@@ -1,0 +1,7 @@
+#!/bin/bash
+
+makepkg -sic
+
+mkdir -p ~/.llama.cpp/models
+
+cp -u ../configs/models.ini ~/.llama.cpp/models.ini
