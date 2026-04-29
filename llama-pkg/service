@@ -65,7 +65,7 @@ function usage {
 }
 
 function main {
-    case "$1" in
+    case "${1:-}" in
         install)   cmd_install ;;
         uninstall) cmd_uninstall ;;
         start)     cmd_start ;;
