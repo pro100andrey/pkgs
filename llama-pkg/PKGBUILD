@@ -1,6 +1,6 @@
 # Maintainer: pro100Andrey
 pkgname=llama-cpp
-pkgver=8982
+pkgver=8994
 pkgrel=1
 pkgdesc="LLM inference in C/C++ (Optimized for Zen4 + Vulkan)"
 arch=('x86_64')
