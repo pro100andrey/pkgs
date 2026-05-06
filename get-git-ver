@@ -37,7 +37,7 @@ for entry in "${REPOS[@]}"; do
     IFS='/' read -r owner repo <<< "$repo_path"
 
     pkgbuild_abs="$SCRIPT_DIR/$pkgbuild"
-    current=$(grep -oP '^pkgver=\K\S+' "$pkgbuild_abs" 2>/dev/null || echo "unknown")
+    current=$(grep -o '^pkgver=\S*' "$pkgbuild_abs" 2>/dev/null | sed 's/^pkgver=//' || echo "unknown")
     latest=$(get_github_ver "$owner" "$repo")
 
     if [[ "$latest" == "error" ]]; then
@@ -91,7 +91,7 @@ if [[ "${1:-}" == "upgrade" ]]; then
             echo "==> $repo: skipping — invalid version '${new_ver}'"
             continue
         fi
-        sed -i "s/^pkgver=.*/pkgver=${new_ver}/" "$pkgbuild_abs"
+        sed -i '' "s/^pkgver=.*/pkgver=${new_ver}/" "$pkgbuild_abs"
         echo "==> $repo: pkgver updated to ${new_ver} in $pkgbuild_abs"
     done
 fi
