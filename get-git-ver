@@ -5,11 +5,14 @@ get_github_ver() {
     local owner=$1
     local repo=$2
     local ua="User-Agent: Arch-Check-Script"
+    # https://github.com/ggml-org/llama.cpp/releases
+    local tag=$(curl -sfL -H "$ua" "https://api.github.com/repos/$owner/$repo/releases/latest" |
+        jq -r '.tag_name // empty')
 
-    local tag
-    tag=$(curl -sfL -H "$ua" "https://api.github.com/repos/$owner/$repo/releases/latest" \
-        | jq -r '.tag_name // empty')
-    [[ -z "$tag" || "$tag" == "null" ]] && { echo "error"; return 1; }
+    [[ -z "$tag" || "$tag" == "null" ]] && {
+        echo "error"
+        return 1
+    }
 
     # Strip leading 'b' prefix from tag (e.g. b8952 -> 8952)
     echo "${tag#b}"
@@ -41,12 +44,13 @@ set_pkgver() {
 }
 
 printf "%-25s  %-22s  %s\n" "Repository" "Installed" "Latest"
-printf '%0.s-' {1..65}; echo
+printf '%0.s-' {1..65}
+echo
 
 idx=0
 for entry in "${REPOS[@]}"; do
-    IFS=':' read -r repo_path pkgbuild <<< "$entry"
-    IFS='/' read -r owner repo <<< "$repo_path"
+    IFS=':' read -r repo_path pkgbuild <<<"$entry"
+    IFS='/' read -r owner repo <<<"$repo_path"
 
     pkgbuild_abs="$SCRIPT_DIR/$pkgbuild"
     current=$(grep -o '^pkgver=\S*' "$pkgbuild_abs" 2>/dev/null | sed 's/^pkgver=//' || echo "unknown")
@@ -86,7 +90,7 @@ if [[ "${1:-}" == "upgrade" ]]; then
         done
     else
         for num in $selection; do
-            if [[ "$num" =~ ^[0-9]+$ ]] && (( num >= 1 && num <= ${#OUTDATED_REPOS[@]} )); then
+            if [[ "$num" =~ ^[0-9]+$ ]] && ((num >= 1 && num <= ${#OUTDATED_REPOS[@]})); then
                 TO_BUILD+=($((num - 1)))
             else
                 echo "Skipping invalid selection: $num"
