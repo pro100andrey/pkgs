@@ -7,7 +7,7 @@ set -euo pipefail
 # - Installs only when installed package version differs from PKGBUILD target.
 # - Copies/patches models.ini into ~/.llama.cpp/models.ini.
 # - 'config' mode updates models.ini only.
-# - Optional repo cleanup is available via 'cleanup' or 'reset' argument.
+# - Performs repository cleanup via reset_git after execution.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../common
@@ -16,10 +16,6 @@ source "${SCRIPT_DIR}/../common"
 PACKAGE_NAME="llama-cpp"
 PKG_DIR="$(cd "${SCRIPT_DIR}/../../llama-pkg" && pwd)"
 PKGBUILD="${PKG_DIR}/PKGBUILD"
-
-function should_reset_git() {
-    [[ "${1:-}" == "cleanup" || "${1:-}" == "reset" || "${2:-}" == "cleanup" || "${2:-}" == "reset" ]]
-}
 
 function prepare_dirs {
     mkdir -p "$HOME/.llama.cpp/models"
@@ -54,9 +50,7 @@ function main {
         install_models_ini
     fi
 
-    if should_reset_git "${1:-}" "${2:-}"; then
-        reset_git
-    fi
+    reset_git
 }
 
 main "$@"
