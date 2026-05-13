@@ -1,32 +1,171 @@
 #!/bin/bash
-# Main update script for all packages
-set -e
+set -euo pipefail
 
-if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <package>|all"
-    exit 1
-fi
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-PKG="$1"
-SCRIPTS_DIR="$(dirname "$0")"
+declare -a OUTDATED_PKGS=()
+declare -a OUTDATED_LATEST=()
 
-update_pkg() {
+usage() {
+    cat <<EOF
+Usage:
+  $0                 Show status for all packages
+  $0 upgrade         Interactive upgrade for outdated packages
+  $0 <package>       Show status for a single package
+  $0 <package> upgrade  Upgrade a single package if outdated
+EOF
+}
+
+package_script() {
     local pkg="$1"
-    local script="$SCRIPTS_DIR/$pkg/update.sh"
-    if [[ -x "$script" ]]; then
-        echo "Updating $pkg..."
-        "$script"
+    echo "$SCRIPTS_DIR/$pkg/update.sh"
+}
+
+check_one() {
+    local pkg="$1"
+    local script
+    script="$(package_script "$pkg")"
+
+    if [[ ! -x "$script" ]]; then
+        printf "%-25s  %-22s  (no script)\n" "$pkg" "unknown"
+        return
+    fi
+
+    local current latest
+    current="$($script current 2>/dev/null || echo "unknown")"
+    latest="$($script latest 2>/dev/null || echo "error")"
+
+    if [[ "$latest" == "error" || -z "$latest" ]]; then
+        printf "%-25s  %-22s  (fetch error)\n" "$pkg" "$current"
+    elif [[ "$current" == "$latest" ]]; then
+        printf "%-25s  %-22s  (up-to-date)\n" "$pkg" "$current"
     else
-        echo "No update script for $pkg or script is not executable."
-        exit 2
+        local idx=$((${#OUTDATED_PKGS[@]} + 1))
+        printf "[%d] %-22s  %-22s  -> %s (update available)\n" "$idx" "$pkg" "$current" "$latest"
+        OUTDATED_PKGS+=("$pkg")
+        OUTDATED_LATEST+=("$latest")
     fi
 }
 
-if [[ "$PKG" == "all" ]]; then
+upgrade_one() {
+    local pkg="$1"
+    local latest="$2"
+    local script
+    script="$(package_script "$pkg")"
+
+    if [[ ! -x "$script" ]]; then
+        echo "==> $pkg: skipping - no executable script"
+        return
+    fi
+
+    if [[ "$latest" == "error" || -z "$latest" ]]; then
+        echo "==> $pkg: skipping - invalid version '$latest'"
+        return
+    fi
+
+    "$script" set "$latest"
+}
+
+collect_packages() {
+    local only_pkg="${1:-}"
+    local -n out_ref=$2
+
+    out_ref=()
+    if [[ -n "$only_pkg" ]]; then
+        out_ref+=("$only_pkg")
+        return
+    fi
+
+    local d pkg
     for d in "$SCRIPTS_DIR"/*/; do
-        pkg=$(basename "$d")
-        update_pkg "$pkg"
+        pkg="$(basename "$d")"
+        out_ref+=("$pkg")
     done
-else
-    update_pkg "$PKG"
-fi
+}
+
+main() {
+    local pkg_arg=""
+    local mode="status"
+
+    case "${1:-}" in
+    "")
+        mode="status"
+        ;;
+    "upgrade")
+        mode="upgrade"
+        ;;
+    "-h" | "--help")
+        usage
+        exit 0
+        ;;
+    *)
+        pkg_arg="$1"
+        if [[ "${2:-}" == "upgrade" ]]; then
+            mode="upgrade"
+        fi
+        ;;
+    esac
+
+    local pkgs=()
+    collect_packages "$pkg_arg" pkgs
+
+    if [[ ${#pkgs[@]} -eq 0 ]]; then
+        echo "No package scripts found in $SCRIPTS_DIR"
+        exit 1
+    fi
+
+    printf "%-25s  %-22s  %s\n" "Repository" "Installed" "Latest"
+    printf '%0.s-' {1..65}
+    echo
+
+    local pkg
+    for pkg in "${pkgs[@]}"; do
+        check_one "$pkg"
+    done
+
+    if [[ "$mode" != "upgrade" ]]; then
+        exit 0
+    fi
+
+    if [[ ${#OUTDATED_PKGS[@]} -eq 0 ]]; then
+        echo
+        echo "All packages are up-to-date."
+        exit 0
+    fi
+
+    # Single package mode: no prompt, upgrade directly.
+    if [[ -n "$pkg_arg" ]]; then
+        upgrade_one "${OUTDATED_PKGS[0]}" "${OUTDATED_LATEST[0]}"
+        exit 0
+    fi
+
+    echo
+    echo -n "Which packages do you want to upgrade? (e.g. 1 2 3, or 'all', or Enter to skip): "
+    read -r selection
+
+    [[ -z "$selection" ]] && exit 0
+
+    declare -a to_upgrade=()
+    if [[ "$selection" == "all" ]]; then
+        local i
+        for i in "${!OUTDATED_PKGS[@]}"; do
+            to_upgrade+=("$i")
+        done
+    else
+        local num
+        for num in $selection; do
+            if [[ "$num" =~ ^[0-9]+$ ]] && ((num >= 1 && num <= ${#OUTDATED_PKGS[@]})); then
+                to_upgrade+=("$((num - 1))")
+            else
+                echo "Skipping invalid selection: $num"
+            fi
+        done
+    fi
+
+    local i
+    for i in "${to_upgrade[@]}"; do
+        upgrade_one "${OUTDATED_PKGS[$i]}" "${OUTDATED_LATEST[$i]}"
+    done
+}
+
+main "$@"

@@ -28,7 +28,7 @@ source_aarch64=(code_arm64_${pkgver}.tar.gz::https://update.code.visualstudio.co
 source_armv7h=(code_armhf_${pkgver}.tar.gz::https://update.code.visualstudio.com/${pkgver}/linux-armhf/stable)
 sha256sums=('SKIP')
 
-
+https://code.visualstudio.com/Download#
 _set_meta_info() {
   sed 's/@@NAME_LONG@@/Visual Studio Code/g' "$1" |\
   sed 's/@@NAME_SHORT@@/Code/g' |\
