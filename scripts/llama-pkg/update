@@ -27,10 +27,5 @@ get_latest() {
     [[ -n "$tag" ]] && echo "$tag" || return 1
 }
 
-set_pkgver() {
-    local ver="$1"
-    sed -i "s/^pkgver=.*/pkgver=${ver}/" "$PKGBUILD"
-    echo "==> llama-pkg: pkgver updated to ${ver} in $PKGBUILD"
-}
-
+PKG_DISPLAY_NAME="llama-pkg"
 run_update_command "$@"

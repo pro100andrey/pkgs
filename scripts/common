@@ -69,11 +69,33 @@ reset_git() {
     git clean -fd
 }
 
+# Generic set_pkgver function for update scripts.
+# Requires global variables: PKGBUILD, PKG_DISPLAY_NAME
+# Resets pkgrel to 1 when pkgver changes, increments when unchanged.
+set_pkgver() {
+    local ver="$1"
+    local old_ver
+    local old_rel
+    old_ver="$(get_current)"
+    old_rel="$(grep -o '^pkgrel=\S*' "$PKGBUILD" 2>/dev/null | sed 's/^pkgrel=//' || echo 1)"
+
+    sed -i "s/^pkgver=.*/pkgver=${ver}/" "$PKGBUILD"
+
+    if [[ "$old_ver" != "$ver" ]]; then
+        sed -i "s/^pkgrel=.*/pkgrel=1/" "$PKGBUILD"
+        echo "==> $PKG_DISPLAY_NAME: pkgver updated to ${ver}, pkgrel reset to 1 in $PKGBUILD"
+    else
+        local new_rel=$((old_rel + 1))
+        sed -i "s/^pkgrel=.*/pkgrel=${new_rel}/" "$PKGBUILD"
+        echo "==> $PKG_DISPLAY_NAME: pkgver unchanged (${ver}), pkgrel incremented to ${new_rel} in $PKGBUILD"
+    fi
+}
+
 # Shared command dispatcher for package update scripts.
+# Requires global variables: PKGBUILD, PKG_DISPLAY_NAME
 # Requires functions in caller script:
 # - get_current
 # - get_latest
-# - set_pkgver
 run_update_command() {
     case "${1:-status}" in
     current)

@@ -27,10 +27,5 @@ get_latest() {
     [[ -n "$ver" ]] && echo "$ver" || return 1
 }
 
-set_pkgver() {
-    local ver="$1"
-    sed -i "s/^pkgver=.*/pkgver=${ver}/" "$PKGBUILD"
-    echo "==> visual-studio-code: pkgver updated to ${ver} in $PKGBUILD"
-}
-
+PKG_DISPLAY_NAME="visual-studio-code"
 run_update_command "$@"

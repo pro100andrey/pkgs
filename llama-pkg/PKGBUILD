@@ -1,8 +1,8 @@
 # Maintainer: pro100Andrey
 # Local optimized package recipe for llama.cpp.
 pkgname=llama-cpp
-pkgver=9128
-pkgrel=6
+pkgver=9129
+pkgrel=1
 pkgdesc="LLM inference in C/C++ (Configurable CPU/GPU build)"
 arch=('x86_64')
 url="https://github.com/ggml-org/llama.cpp"
@@ -40,15 +40,6 @@ if [[ "${_gpu_backend}" == "auto" ]]; then
   echo "Auto-selected LLAMA_GPU_BACKEND=${_gpu_backend}"
 fi
 
-# CPU tuning selector:
-#   LLAMA_CPU_PROFILE=auto (default)      -> fast local build (native)
-#   LLAMA_CPU_PROFILE=auto-compat         -> auto detect: zen4/avx2/portable
-#   LLAMA_CPU_PROFILE=portable            -> maximum compatibility
-#   LLAMA_CPU_PROFILE=native              -> optimize for build host
-#   LLAMA_CPU_PROFILE=avx2                -> x86-64-v3 level
-#   LLAMA_CPU_PROFILE=zen4                -> explicit Zen 4 tuning
-_cpu_profile="${LLAMA_CPU_PROFILE:-auto}"
-
 # CUDA architecture selector (used when backend includes CUDA):
 #   LLAMA_CUDA_ARCH=auto (default)         -> detect from nvidia-smi when available
 #   LLAMA_CUDA_ARCH=native                 -> CMake native detection
@@ -80,40 +71,10 @@ build() {
   local gpu_flags=()
   local cuda_flags=()
   local cpu_flags=()
-  local cflags="-O3 -pipe -fno-plt -ffile-prefix-map=$srcdir=."
-  local cxxflags="-O3 -pipe -fno-plt -ffile-prefix-map=$srcdir=."
-  local effective_cpu_profile="${_cpu_profile}"
-  local cpuinfo=""
+  local cflags="-march=native -O3 -pipe -fno-plt -ffile-prefix-map=$srcdir=."
+  local cxxflags="-march=native -O3 -pipe -fno-plt -ffile-prefix-map=$srcdir=."
   local detected_cuda_arch=""
-
-  if [[ "${_cpu_profile}" == "auto" ]]; then
-    effective_cpu_profile="native"
-    echo "Auto-selected LLAMA_CPU_PROFILE=${effective_cpu_profile} (fast local)"
-  elif [[ "${_cpu_profile}" == "auto-compat" ]]; then
-    if [[ -r /proc/cpuinfo ]]; then
-      cpuinfo="$(tr '[:upper:]' '[:lower:]' </proc/cpuinfo)"
-    fi
-
-    if [[ -n "${cpuinfo}" ]] &&
-      grep -q ' avx2 ' <<<" ${cpuinfo} " &&
-      grep -q ' fma ' <<<" ${cpuinfo} " &&
-      grep -q ' f16c ' <<<" ${cpuinfo} " &&
-      grep -q ' avx512f ' <<<" ${cpuinfo} " &&
-      grep -q ' avx512_vbmi ' <<<" ${cpuinfo} " &&
-      grep -q ' avx512_vnni ' <<<" ${cpuinfo} " &&
-      grep -q ' avx512_bf16 ' <<<" ${cpuinfo} "; then
-      effective_cpu_profile="zen4"
-    elif [[ -n "${cpuinfo}" ]] &&
-      grep -q ' avx2 ' <<<" ${cpuinfo} " &&
-      grep -q ' fma ' <<<" ${cpuinfo} " &&
-      grep -q ' f16c ' <<<" ${cpuinfo} "; then
-      effective_cpu_profile="avx2"
-    else
-      effective_cpu_profile="portable"
-    fi
-
-    echo "Auto-selected LLAMA_CPU_PROFILE=${effective_cpu_profile} (compat)"
-  fi
+  echo "Selected LLAMA_CPU_PROFILE=native"
 
   case "${_gpu_backend}" in
   vulkan)
@@ -166,70 +127,10 @@ build() {
     esac
   fi
 
-  case "${effective_cpu_profile}" in
-  portable)
-    cpu_flags=(
-      -DGGML_NATIVE=OFF
-      -DGGML_AVX2=OFF
-      -DGGML_FMA=OFF
-      -DGGML_F16C=OFF
-      -DGGML_AVX512=OFF
-      -DGGML_AVX512_VBMI=OFF
-      -DGGML_AVX512_VNNI=OFF
-      -DGGML_AVX512_BF16=OFF
-      -DGGML_LTO=ON
-    )
-    ;;
-  native)
-    cpu_flags=(
-      -DGGML_NATIVE=ON
-      -DGGML_AVX2=OFF
-      -DGGML_FMA=OFF
-      -DGGML_F16C=OFF
-      -DGGML_AVX512=OFF
-      -DGGML_AVX512_VBMI=OFF
-      -DGGML_AVX512_VNNI=OFF
-      -DGGML_AVX512_BF16=OFF
-      -DGGML_LTO=ON
-    )
-    cflags="-march=native ${cflags}"
-    cxxflags="-march=native ${cxxflags}"
-    ;;
-  avx2)
-    cpu_flags=(
-      -DGGML_NATIVE=OFF
-      -DGGML_AVX2=ON
-      -DGGML_FMA=ON
-      -DGGML_F16C=ON
-      -DGGML_AVX512=OFF
-      -DGGML_AVX512_VBMI=OFF
-      -DGGML_AVX512_VNNI=OFF
-      -DGGML_AVX512_BF16=OFF
-      -DGGML_LTO=ON
-    )
-    cflags="-march=x86-64-v3 ${cflags}"
-    cxxflags="-march=x86-64-v3 ${cxxflags}"
-    ;;
-  zen4)
-    cpu_flags=(
-      -DGGML_NATIVE=OFF
-      -DGGML_AVX2=ON
-      -DGGML_FMA=ON
-      -DGGML_F16C=ON
-      -DGGML_AVX512=ON
-      -DGGML_AVX512_VBMI=ON
-      -DGGML_AVX512_VNNI=ON
-      -DGGML_AVX512_BF16=ON
-      -DGGML_LTO=ON
-    )
-    cflags="-march=znver4 ${cflags}"
-    cxxflags="-march=znver4 ${cxxflags}"
-    ;;
-  *)
-    echo "Invalid LLAMA_CPU_PROFILE='${_cpu_profile}'. Use: auto|auto-compat|portable|native|avx2|zen4" >&2
-    exit 1
-    ;;
-  esac
+  cpu_flags=(
+    -DGGML_NATIVE=ON
+    -DGGML_LTO=ON
+  )
 
   cmake -B build -S "llama.cpp-b${pkgver}" -G Ninja \
     -DLLAMA_BUILD_TESTS=OFF \

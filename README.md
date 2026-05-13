@@ -52,10 +52,8 @@ sudo ./llama-pkg/service status
 - `LLAMA_GPU_BACKEND`:
 	- `auto` (default): NVIDIA -> CUDA, otherwise Vulkan
 	- `cuda`, `vulkan`, `both`, `cpu`
-- `LLAMA_CPU_PROFILE`:
-	- `auto` (default): fast local (`native`)
-	- `auto-compat`: auto-select `zen4` / `avx2` / `portable`
-	- `native`, `avx2`, `zen4`, `portable`
+- CPU profile:
+	- fixed to `native` (optimized for the local build host)
 - `LLAMA_CUDA_ARCH` (used when CUDA is enabled):
 	- `auto` (default): detect from `nvidia-smi` when available; fallback to CMake default detection
 	- `native`
@@ -67,11 +65,8 @@ Examples:
 # Default fast-local autodetect (recommended for one machine)
 ./scripts/llama-pkg/install
 
-# Force CUDA and keep fast-local CPU profile
-LLAMA_GPU_BACKEND=cuda LLAMA_CPU_PROFILE=auto ./scripts/llama-pkg/install
-
-# Compatibility-oriented CPU selection
-LLAMA_CPU_PROFILE=auto-compat ./scripts/llama-pkg/install
+# Force CUDA
+LLAMA_GPU_BACKEND=cuda ./scripts/llama-pkg/install
 
 # Pin CUDA architectures explicitly
 LLAMA_GPU_BACKEND=cuda LLAMA_CUDA_ARCH="86;89" ./scripts/llama-pkg/install
