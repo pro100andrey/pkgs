@@ -1,0 +1,32 @@
+#!/bin/bash
+# Main update script for all packages
+set -e
+
+if [[ $# -lt 1 ]]; then
+    echo "Usage: $0 <package>|all"
+    exit 1
+fi
+
+PKG="$1"
+SCRIPTS_DIR="$(dirname "$0")"
+
+update_pkg() {
+    local pkg="$1"
+    local script="$SCRIPTS_DIR/$pkg/update.sh"
+    if [[ -x "$script" ]]; then
+        echo "Updating $pkg..."
+        "$script"
+    else
+        echo "No update script for $pkg or script is not executable."
+        exit 2
+    fi
+}
+
+if [[ "$PKG" == "all" ]]; then
+    for d in "$SCRIPTS_DIR"/*/; do
+        pkg=$(basename "$d")
+        update_pkg "$pkg"
+    done
+else
+    update_pkg "$PKG"
+fi
