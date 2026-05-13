@@ -1,12 +1,20 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../common
+source "${SCRIPT_DIR}/../common"
+
+PACKAGE_NAME="llama-cpp"
+PKG_DIR="$(cd "${SCRIPT_DIR}/../../llama-pkg" && pwd)"
+PKGBUILD="${PKG_DIR}/PKGBUILD"
+
 function prepare_dirs {
     mkdir -p "$HOME/.llama.cpp/models"
 }
 
 function install_models_ini {
-    local source_models_ini="$(dirname "$0")/configs/models.ini"
+    local source_models_ini="${SCRIPT_DIR}/configs/models.ini"
     local target_models_ini="$HOME/.llama.cpp/models.ini"
     local full_models_path="$HOME/.llama.cpp/models"
 
@@ -20,7 +28,7 @@ function install_models_ini {
 }
 
 function install_pkg() {
-    makepkg -sic
+    install_pkg_if_needed "$PACKAGE_NAME" "$PKGBUILD" -sic
 }
 
 function reset_git {
