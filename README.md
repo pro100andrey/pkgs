@@ -44,3 +44,35 @@ Use the service manager script to install or manage `llama-server` as a systemd 
 sudo ./llama-pkg/service install
 sudo ./llama-pkg/service status
 ```
+
+## Llama Build Profiles
+
+`llama-pkg/PKGBUILD` supports build-time selectors via environment variables.
+
+- `LLAMA_GPU_BACKEND`:
+	- `auto` (default): NVIDIA -> CUDA, otherwise Vulkan
+	- `cuda`, `vulkan`, `both`, `cpu`
+- `LLAMA_CPU_PROFILE`:
+	- `auto` (default): fast local (`native`)
+	- `auto-compat`: auto-select `zen4` / `avx2` / `portable`
+	- `native`, `avx2`, `zen4`, `portable`
+- `LLAMA_CUDA_ARCH` (used when CUDA is enabled):
+	- `auto` (default): detect from `nvidia-smi` when available; fallback to CMake default detection
+	- `native`
+	- explicit list like `86;89`
+
+Examples:
+
+```bash
+# Default fast-local autodetect (recommended for one machine)
+./scripts/llama-pkg/install
+
+# Force CUDA and keep fast-local CPU profile
+LLAMA_GPU_BACKEND=cuda LLAMA_CPU_PROFILE=auto ./scripts/llama-pkg/install
+
+# Compatibility-oriented CPU selection
+LLAMA_CPU_PROFILE=auto-compat ./scripts/llama-pkg/install
+
+# Pin CUDA architectures explicitly
+LLAMA_GPU_BACKEND=cuda LLAMA_CUDA_ARCH="86;89" ./scripts/llama-pkg/install
+```

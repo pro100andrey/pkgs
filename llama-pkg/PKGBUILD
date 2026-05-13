@@ -2,36 +2,245 @@
 # Local optimized package recipe for llama.cpp.
 pkgname=llama-cpp
 pkgver=9128
-pkgrel=1
-pkgdesc="LLM inference in C/C++ (Optimized for Zen4 + Vulkan)"
+pkgrel=6
+pkgdesc="LLM inference in C/C++ (Configurable CPU/GPU build)"
 arch=('x86_64')
 url="https://github.com/ggml-org/llama.cpp"
 license=('MIT')
-depends=('vulkan-icd-loader' 'gcc-libs' 'glibc')
-makedepends=('cmake' 'ninja' 'vulkan-headers')
+depends=('gcc-libs' 'glibc')
+makedepends=('cmake' 'ninja')
 conflicts=('llama-cpp-git')
 options=('!debug' 'strip')
 source=("llama.cpp-${pkgver}.tar.gz::https://github.com/ggml-org/llama.cpp/archive/refs/tags/b${pkgver}.tar.gz")
 sha256sums=('SKIP')
 
+# Build-time selector:
+#   LLAMA_GPU_BACKEND=auto (default)      -> auto detect (NVIDIA -> cuda, else vulkan)
+#   LLAMA_GPU_BACKEND=vulkan
+#   LLAMA_GPU_BACKEND=cuda
+#   LLAMA_GPU_BACKEND=both
+#   LLAMA_GPU_BACKEND=cpu
+_gpu_backend="${LLAMA_GPU_BACKEND:-auto}"
+
+if [[ "${_gpu_backend}" == "auto" ]]; then
+  _has_nvidia=0
+
+  for _vendor_file in /sys/class/drm/card*/device/vendor /sys/bus/pci/devices/*/vendor; do
+    if [[ -r "${_vendor_file}" ]] && grep -qi '^0x10de$' "${_vendor_file}"; then
+      _has_nvidia=1
+      break
+    fi
+  done
+
+  if [[ ${_has_nvidia} -eq 1 || -d /proc/driver/nvidia ]]; then
+    _gpu_backend="cuda"
+  else
+    _gpu_backend="vulkan"
+  fi
+  echo "Auto-selected LLAMA_GPU_BACKEND=${_gpu_backend}"
+fi
+
+# CPU tuning selector:
+#   LLAMA_CPU_PROFILE=auto (default)      -> fast local build (native)
+#   LLAMA_CPU_PROFILE=auto-compat         -> auto detect: zen4/avx2/portable
+#   LLAMA_CPU_PROFILE=portable            -> maximum compatibility
+#   LLAMA_CPU_PROFILE=native              -> optimize for build host
+#   LLAMA_CPU_PROFILE=avx2                -> x86-64-v3 level
+#   LLAMA_CPU_PROFILE=zen4                -> explicit Zen 4 tuning
+_cpu_profile="${LLAMA_CPU_PROFILE:-auto}"
+
+# CUDA architecture selector (used when backend includes CUDA):
+#   LLAMA_CUDA_ARCH=auto (default)         -> detect from nvidia-smi when available
+#   LLAMA_CUDA_ARCH=native                 -> CMake native detection
+#   LLAMA_CUDA_ARCH="86;89"               -> explicit list
+_cuda_arch="${LLAMA_CUDA_ARCH:-auto}"
+
+case "${_gpu_backend}" in
+vulkan)
+  depends+=('vulkan-icd-loader')
+  makedepends+=('vulkan-headers')
+  ;;
+cuda)
+  depends+=('cuda')
+  makedepends+=('cuda')
+  ;;
+both)
+  depends+=('vulkan-icd-loader' 'cuda')
+  makedepends+=('vulkan-headers' 'cuda')
+  ;;
+cpu)
+  ;;
+*)
+  echo "Invalid LLAMA_GPU_BACKEND='${_gpu_backend}'. Use: vulkan|cuda|both|cpu" >&2
+  exit 1
+  ;;
+esac
+
 build() {
+  local gpu_flags=()
+  local cuda_flags=()
+  local cpu_flags=()
+  local cflags="-O3 -pipe -fno-plt -ffile-prefix-map=$srcdir=."
+  local cxxflags="-O3 -pipe -fno-plt -ffile-prefix-map=$srcdir=."
+  local effective_cpu_profile="${_cpu_profile}"
+  local cpuinfo=""
+  local detected_cuda_arch=""
+
+  if [[ "${_cpu_profile}" == "auto" ]]; then
+    effective_cpu_profile="native"
+    echo "Auto-selected LLAMA_CPU_PROFILE=${effective_cpu_profile} (fast local)"
+  elif [[ "${_cpu_profile}" == "auto-compat" ]]; then
+    if [[ -r /proc/cpuinfo ]]; then
+      cpuinfo="$(tr '[:upper:]' '[:lower:]' </proc/cpuinfo)"
+    fi
+
+    if [[ -n "${cpuinfo}" ]] &&
+      grep -q ' avx2 ' <<<" ${cpuinfo} " &&
+      grep -q ' fma ' <<<" ${cpuinfo} " &&
+      grep -q ' f16c ' <<<" ${cpuinfo} " &&
+      grep -q ' avx512f ' <<<" ${cpuinfo} " &&
+      grep -q ' avx512_vbmi ' <<<" ${cpuinfo} " &&
+      grep -q ' avx512_vnni ' <<<" ${cpuinfo} " &&
+      grep -q ' avx512_bf16 ' <<<" ${cpuinfo} "; then
+      effective_cpu_profile="zen4"
+    elif [[ -n "${cpuinfo}" ]] &&
+      grep -q ' avx2 ' <<<" ${cpuinfo} " &&
+      grep -q ' fma ' <<<" ${cpuinfo} " &&
+      grep -q ' f16c ' <<<" ${cpuinfo} "; then
+      effective_cpu_profile="avx2"
+    else
+      effective_cpu_profile="portable"
+    fi
+
+    echo "Auto-selected LLAMA_CPU_PROFILE=${effective_cpu_profile} (compat)"
+  fi
+
+  case "${_gpu_backend}" in
+  vulkan)
+    gpu_flags=(-DGGML_VULKAN=ON -DGGML_CUDA=OFF)
+    ;;
+  cuda)
+    gpu_flags=(-DGGML_VULKAN=OFF -DGGML_CUDA=ON)
+    ;;
+  both)
+    gpu_flags=(-DGGML_VULKAN=ON -DGGML_CUDA=ON)
+    ;;
+  cpu)
+    gpu_flags=(-DGGML_VULKAN=OFF -DGGML_CUDA=OFF)
+    ;;
+  esac
+
+  if [[ "${_gpu_backend}" == "cuda" || "${_gpu_backend}" == "both" ]]; then
+    case "${_cuda_arch}" in
+    auto)
+      if command -v nvidia-smi >/dev/null 2>&1; then
+        detected_cuda_arch="$({
+          nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null |
+            sed 's/[[:space:]]//g' |
+            awk -F. 'NF >= 2 {print $1 $2}' |
+            sort -u |
+            paste -sd';' -
+        } || true)"
+      fi
+
+      if [[ -n "${detected_cuda_arch}" ]]; then
+        cuda_flags+=("-DCMAKE_CUDA_ARCHITECTURES=${detected_cuda_arch}")
+        echo "Auto-selected LLAMA_CUDA_ARCH=${detected_cuda_arch}"
+      else
+        echo "LLAMA_CUDA_ARCH=auto: using CMake default CUDA arch detection"
+      fi
+      ;;
+    native)
+      cuda_flags+=("-DCMAKE_CUDA_ARCHITECTURES=native")
+      echo "Selected LLAMA_CUDA_ARCH=native"
+      ;;
+    *)
+      if [[ "${_cuda_arch}" =~ ^[0-9]+([;,][0-9]+)*$ ]]; then
+        cuda_flags+=("-DCMAKE_CUDA_ARCHITECTURES=${_cuda_arch//,/;}")
+        echo "Selected LLAMA_CUDA_ARCH=${_cuda_arch//,/;}"
+      else
+        echo "Invalid LLAMA_CUDA_ARCH='${_cuda_arch}'. Use: auto|native|\"86;89\"" >&2
+        exit 1
+      fi
+      ;;
+    esac
+  fi
+
+  case "${effective_cpu_profile}" in
+  portable)
+    cpu_flags=(
+      -DGGML_NATIVE=OFF
+      -DGGML_AVX2=OFF
+      -DGGML_FMA=OFF
+      -DGGML_F16C=OFF
+      -DGGML_AVX512=OFF
+      -DGGML_AVX512_VBMI=OFF
+      -DGGML_AVX512_VNNI=OFF
+      -DGGML_AVX512_BF16=OFF
+      -DGGML_LTO=ON
+    )
+    ;;
+  native)
+    cpu_flags=(
+      -DGGML_NATIVE=ON
+      -DGGML_AVX2=OFF
+      -DGGML_FMA=OFF
+      -DGGML_F16C=OFF
+      -DGGML_AVX512=OFF
+      -DGGML_AVX512_VBMI=OFF
+      -DGGML_AVX512_VNNI=OFF
+      -DGGML_AVX512_BF16=OFF
+      -DGGML_LTO=ON
+    )
+    cflags="-march=native ${cflags}"
+    cxxflags="-march=native ${cxxflags}"
+    ;;
+  avx2)
+    cpu_flags=(
+      -DGGML_NATIVE=OFF
+      -DGGML_AVX2=ON
+      -DGGML_FMA=ON
+      -DGGML_F16C=ON
+      -DGGML_AVX512=OFF
+      -DGGML_AVX512_VBMI=OFF
+      -DGGML_AVX512_VNNI=OFF
+      -DGGML_AVX512_BF16=OFF
+      -DGGML_LTO=ON
+    )
+    cflags="-march=x86-64-v3 ${cflags}"
+    cxxflags="-march=x86-64-v3 ${cxxflags}"
+    ;;
+  zen4)
+    cpu_flags=(
+      -DGGML_NATIVE=OFF
+      -DGGML_AVX2=ON
+      -DGGML_FMA=ON
+      -DGGML_F16C=ON
+      -DGGML_AVX512=ON
+      -DGGML_AVX512_VBMI=ON
+      -DGGML_AVX512_VNNI=ON
+      -DGGML_AVX512_BF16=ON
+      -DGGML_LTO=ON
+    )
+    cflags="-march=znver4 ${cflags}"
+    cxxflags="-march=znver4 ${cxxflags}"
+    ;;
+  *)
+    echo "Invalid LLAMA_CPU_PROFILE='${_cpu_profile}'. Use: auto|auto-compat|portable|native|avx2|zen4" >&2
+    exit 1
+    ;;
+  esac
+
   cmake -B build -S "llama.cpp-b${pkgver}" -G Ninja \
     -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_EXAMPLES=OFF \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DGGML_VULKAN=ON \
-    -DGGML_AVX512=ON \
-    -DGGML_AVX512_VBMI=ON \
-    -DGGML_AVX512_VNNI=ON \
-    -DGGML_AVX512_BF16=ON \
-    -DGGML_AVX2=ON \
-    -DGGML_FMA=ON \
-    -DGGML_F16C=ON \
-    -DGGML_LTO=ON \
-    -DGGML_NATIVE=ON \
-    -DCMAKE_C_FLAGS="-march=native -O3 -O3 -pipe -fno-plt -ffile-prefix-map=$srcdir=." \
-    -DCMAKE_CXX_FLAGS="-march=native -O3 -O3 -pipe -fno-plt -ffile-prefix-map=$srcdir=."
+    "${gpu_flags[@]}" \
+    "${cuda_flags[@]}" \
+    "${cpu_flags[@]}" \
+    -DCMAKE_C_FLAGS="${cflags}" \
+    -DCMAKE_CXX_FLAGS="${cxxflags}"
 
   cmake --build build -j"$(nproc)"
 }
