@@ -2,6 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../common
 source "${SCRIPT_DIR}/../common"
 
 PACKAGE_NAME="visual-studio-code"
@@ -10,20 +11,6 @@ PKGBUILD="${PKG_DIR}/PKGBUILD"
 
 function install() {
     install_pkg_if_needed "$PACKAGE_NAME" "$PKGBUILD" -sic
-}
-
-function reset_git {
-    if ! git diff --quiet || ! git diff --cached --quiet; then
-        echo "Warning: Uncommitted changes detected. Resetting git will discard these changes."
-        read -rp "Do you want to continue? [y/N] " response
-        if [[ ! "$response" =~ ^[Yy]$ ]]; then
-            echo "Aborting."
-            exit 1
-        fi
-    fi
-
-    git reset --hard
-    git clean -fd
 }
 
 function main {

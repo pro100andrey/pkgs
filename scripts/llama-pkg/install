@@ -31,11 +31,6 @@ function install_pkg() {
     install_pkg_if_needed "$PACKAGE_NAME" "$PKGBUILD" -sic
 }
 
-function reset_git {
-    git reset --hard
-    git clean -fd
-}
-
 function main {
 
     prepare_dirs
