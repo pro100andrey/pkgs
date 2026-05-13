@@ -45,7 +45,6 @@ function main {
         install_models_ini
     else
         install_pkg
-        install_models_ini
     fi
 
     reset_git
