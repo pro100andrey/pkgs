@@ -18,7 +18,7 @@ EOF
 
 package_script() {
     local pkg="$1"
-    echo "$SCRIPTS_DIR/$pkg/update.sh"
+    echo "$SCRIPTS_DIR/$pkg/update"
 }
 
 check_one() {
