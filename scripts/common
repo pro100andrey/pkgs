@@ -69,6 +69,12 @@ reset_git() {
     git clean -fd
 }
 
+# Get current pkgver from PKGBUILD.
+# Requires global variable: PKGBUILD
+get_current() {
+    grep -o '^pkgver=\S*' "$PKGBUILD" 2>/dev/null | sed 's/^pkgver=//' || true
+}
+
 # Generic set_pkgver function for update scripts.
 # Requires global variables: PKGBUILD, PKG_DISPLAY_NAME
 # Resets pkgrel to 1 when pkgver changes, increments when unchanged.

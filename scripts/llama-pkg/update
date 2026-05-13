@@ -13,10 +13,6 @@ source "$SCRIPT_DIR/../common"
 PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../llama-pkg" && pwd)"
 PKGBUILD="$PKG_DIR/PKGBUILD"
 
-get_current() {
-    grep -o '^pkgver=\S*' "$PKGBUILD" 2>/dev/null | sed 's/^pkgver=//' || true
-}
-
 get_latest() {
     local tag
     tag="$(curl -sfL -H "User-Agent: pkgs-update-script" "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" |
