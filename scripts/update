@@ -10,9 +10,9 @@ usage() {
     cat <<EOF
 Usage:
   $0                 Show status for all packages
-  $0 upgrade         Interactive upgrade for outdated packages
+    $0 bump            Interactive version bump for outdated package recipes
   $0 <package>       Show status for a single package
-  $0 <package> upgrade  Upgrade a single package if outdated
+    $0 <package> bump  Bump a single package recipe if outdated
 EOF
 }
 
@@ -47,7 +47,7 @@ check_one() {
     fi
 }
 
-upgrade_one() {
+bump_one() {
     local pkg="$1"
     local latest="$2"
     local script
@@ -91,8 +91,8 @@ main() {
     "")
         mode="status"
         ;;
-    "upgrade")
-        mode="upgrade"
+    "bump" | "upgrade")
+        mode="bump"
         ;;
     "-h" | "--help")
         usage
@@ -100,8 +100,8 @@ main() {
         ;;
     *)
         pkg_arg="$1"
-        if [[ "${2:-}" == "upgrade" ]]; then
-            mode="upgrade"
+        if [[ "${2:-}" == "bump" || "${2:-}" == "upgrade" ]]; then
+            mode="bump"
         fi
         ;;
     esac
@@ -123,7 +123,7 @@ main() {
         check_one "$pkg"
     done
 
-    if [[ "$mode" != "upgrade" ]]; then
+    if [[ "$mode" != "bump" ]]; then
         exit 0
     fi
 
@@ -133,29 +133,29 @@ main() {
         exit 0
     fi
 
-    # Single package mode: no prompt, upgrade directly.
+    # Single package mode: no prompt, bump directly.
     if [[ -n "$pkg_arg" ]]; then
-        upgrade_one "${OUTDATED_PKGS[0]}" "${OUTDATED_LATEST[0]}"
+        bump_one "${OUTDATED_PKGS[0]}" "${OUTDATED_LATEST[0]}"
         exit 0
     fi
 
     echo
-    echo -n "Which packages do you want to upgrade? (e.g. 1 2 3, or 'all', or Enter to skip): "
+    echo -n "Which package recipes do you want to bump? (e.g. 1 2 3, or 'all', or Enter to skip): "
     read -r selection
 
     [[ -z "$selection" ]] && exit 0
 
-    declare -a to_upgrade=()
+    declare -a to_bump=()
     if [[ "$selection" == "all" ]]; then
         local i
         for i in "${!OUTDATED_PKGS[@]}"; do
-            to_upgrade+=("$i")
+            to_bump+=("$i")
         done
     else
         local num
         for num in $selection; do
             if [[ "$num" =~ ^[0-9]+$ ]] && ((num >= 1 && num <= ${#OUTDATED_PKGS[@]})); then
-                to_upgrade+=("$((num - 1))")
+                to_bump+=("$((num - 1))")
             else
                 echo "Skipping invalid selection: $num"
             fi
@@ -163,8 +163,8 @@ main() {
     fi
 
     local i
-    for i in "${to_upgrade[@]}"; do
-        upgrade_one "${OUTDATED_PKGS[$i]}" "${OUTDATED_LATEST[$i]}"
+    for i in "${to_bump[@]}"; do
+        bump_one "${OUTDATED_PKGS[$i]}" "${OUTDATED_LATEST[$i]}"
     done
 }
 
