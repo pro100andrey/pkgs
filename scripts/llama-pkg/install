@@ -18,7 +18,7 @@ function prepare_dirs {
 }
 
 function install_models_ini {
-    local source_models_ini="${SCRIPT_DIR}/configs/models.ini"
+    local source_models_ini="${PKG_DIR}/configs/models.ini"
     local target_models_ini="$HOME/.llama.cpp/models.ini"
     local full_models_path="$HOME/.llama.cpp/models"
 
