@@ -1,4 +1,5 @@
 pkgname=visual-studio-code
+_pkgname=visual-studio-code
 pkgver=1.120.0
 pkgrel=1
 pkgdesc="Visual Studio Code (vscode): Editor for building and debugging modern web and cloud applications (official binary version)"
@@ -10,38 +11,38 @@ conflicts=('code' 'visual-studio-code')
 # Upstream has signature verification for extensions and stripping breaks it
 # See https://github.com/microsoft/vscode/issues/223455#issuecomment-2610001754
 options=(!strip)
-install=$pkgname.install
 # lsof: needed for terminal splitting, see https://github.com/Microsoft/vscode/issues/62991
 # xdg-utils: needed for opening web links with xdg-open
 depends=(libxkbfile gnupg gtk3 libsecret nss gcc-libs libnotify libxss glibc lsof shared-mime-info xdg-utils alsa-lib)
 optdepends=('glib2: Needed for move to trash functionality'
-            'libdbusmenu-glib: Needed for KDE global menu'
-            'org.freedesktop.secrets: Needed for settings sync'
-             # See https://github.com/MicrosoftDocs/live-share/issues/4650
-            'icu69: Needed for live share' )
+  'libdbusmenu-glib: Needed for KDE global menu'
+  'org.freedesktop.secrets: Needed for settings sync'
+  # See https://github.com/MicrosoftDocs/live-share/issues/4650
+  'icu69: Needed for live share')
 source=(code-${pkgver}.desktop.in::https://raw.githubusercontent.com/microsoft/vscode/${pkgver}/resources/linux/code.desktop
-        code-${pkgver}-url-handler.desktop.in::https://raw.githubusercontent.com/microsoft/vscode/${pkgver}/resources/linux/code-url-handler.desktop
-        code-${pkgver}-workspace.xml.in::https://raw.githubusercontent.com/microsoft/vscode/${pkgver}/resources/linux/code-workspace.xml
-        ${_pkgname}-bin.sh)
+  code-${pkgver}-url-handler.desktop.in::https://raw.githubusercontent.com/microsoft/vscode/${pkgver}/resources/linux/code-url-handler.desktop
+  code-${pkgver}-workspace.xml.in::https://raw.githubusercontent.com/microsoft/vscode/${pkgver}/resources/linux/code-workspace.xml)
 source_x86_64=(code_x64_${pkgver}.tar.gz::https://update.code.visualstudio.com/${pkgver}/linux-x64/stable)
 source_aarch64=(code_arm64_${pkgver}.tar.gz::https://update.code.visualstudio.com/${pkgver}/linux-arm64/stable)
 source_armv7h=(code_armhf_${pkgver}.tar.gz::https://update.code.visualstudio.com/${pkgver}/linux-armhf/stable)
-sha256sums=('SKIP')
+sha256sums=('SKIP' 'SKIP' 'SKIP')
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+sha256sums_armv7h=('SKIP')
 
-https://code.visualstudio.com/Download#
 _set_meta_info() {
-  sed 's/@@NAME_LONG@@/Visual Studio Code/g' "$1" |\
-  sed 's/@@NAME_SHORT@@/Code/g' |\
-  sed 's/@@NAME@@/code/g' |\
-  sed 's#@@EXEC@@#/usr/bin/code#g' |\
-  sed 's/@@ICON@@/visual-studio-code/g' |\
-  sed 's/@@URLPROTOCOL@@/vscode/g'
+  sed 's/@@NAME_LONG@@/Visual Studio Code/g' "$1" |
+    sed 's/@@NAME_SHORT@@/Code/g' |
+    sed 's/@@NAME@@/code/g' |
+    sed 's#@@EXEC@@#/usr/bin/code#g' |
+    sed 's/@@ICON@@/visual-studio-code/g' |
+    sed 's/@@URLPROTOCOL@@/vscode/g'
 }
 
 prepare() {
-  _set_meta_info "${srcdir}/code-${pkgver}.desktop.in" > "${srcdir}/code.desktop"
-  _set_meta_info "${srcdir}/code-${pkgver}-url-handler.desktop.in" > "${srcdir}/code-url-handler.desktop"
-  _set_meta_info "${srcdir}/code-${pkgver}-workspace.xml.in" > "${srcdir}/code-workspace.xml"
+  _set_meta_info "${srcdir}/code-${pkgver}.desktop.in" >"${srcdir}/code.desktop"
+  _set_meta_info "${srcdir}/code-${pkgver}-url-handler.desktop.in" >"${srcdir}/code-url-handler.desktop"
+  _set_meta_info "${srcdir}/code-${pkgver}-workspace.xml.in" >"${srcdir}/code-workspace.xml"
 }
 
 _pkg() {
@@ -70,7 +71,7 @@ package() {
   cp -r "${srcdir}/$(_pkg)/"* "${pkgdir}/opt/${_pkgname}"
 
   # Launcher
-  install -m755 "${srcdir}/${_pkgname}-bin.sh" "${pkgdir}/usr/bin/code"
+  ln -s "/opt/${_pkgname}/bin/code" "${pkgdir}/usr/bin/code"
 
   # setuid on chrome-sandbox
   # Uncomment if using a kernel without user namespaces, like linux-hardened
