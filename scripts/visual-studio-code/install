@@ -13,6 +13,15 @@ function install() {
 }
 
 function reset_git {
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        echo "Warning: Uncommitted changes detected. Resetting git will discard these changes."
+        read -rp "Do you want to continue? [y/N] " response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            echo "Aborting."
+            exit 1
+        fi
+    fi
+
     git reset --hard
     git clean -fd
 }
