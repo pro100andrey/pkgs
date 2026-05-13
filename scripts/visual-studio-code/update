@@ -10,8 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../common
 source "$SCRIPT_DIR/../common"
 
-PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../visual-studio-code" && pwd)"
-PKGBUILD="$PKG_DIR/PKGBUILD"
+init_package_env "visual-studio-code" "visual-studio-code"
+PKG_DISPLAY_NAME="visual-studio-code"
 
 get_latest() {
     local ver
@@ -23,5 +23,4 @@ get_latest() {
     [[ -n "$ver" ]] && echo "$ver" || return 1
 }
 
-PKG_DISPLAY_NAME="visual-studio-code"
 run_update_command "$@"

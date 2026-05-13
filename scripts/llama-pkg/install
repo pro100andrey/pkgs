@@ -13,9 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../common
 source "${SCRIPT_DIR}/../common"
 
-PACKAGE_NAME="llama-cpp"
-PKG_DIR="$(cd "${SCRIPT_DIR}/../../llama-pkg" && pwd)"
-PKGBUILD="${PKG_DIR}/PKGBUILD"
+init_package_env "llama-cpp" "llama-pkg"
 
 function prepare_dirs {
     mkdir -p "$HOME/.llama.cpp/models"

@@ -10,8 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../common
 source "$SCRIPT_DIR/../common"
 
-PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../llama-pkg" && pwd)"
-PKGBUILD="$PKG_DIR/PKGBUILD"
+init_package_env "llama-cpp" "llama-pkg"
+PKG_DISPLAY_NAME="llama-pkg"
 
 get_latest() {
     local tag
@@ -23,5 +23,4 @@ get_latest() {
     [[ -n "$tag" ]] && echo "$tag" || return 1
 }
 
-PKG_DISPLAY_NAME="llama-pkg"
 run_update_command "$@"

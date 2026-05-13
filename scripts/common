@@ -75,6 +75,19 @@ get_current() {
     grep -o '^pkgver=\S*' "$PKGBUILD" 2>/dev/null | sed 's/^pkgver=//' || true
 }
 
+# Initialize package environment variables.
+# Sets: PACKAGE_NAME, PKG_DIR, PKGBUILD
+# Parameters:
+#   $1 - Package name (e.g., "llama-cpp")
+#   $2 - Package directory name (e.g., "llama-pkg")
+init_package_env() {
+    local package_name="$1"
+    local pkg_dir_name="$2"
+    PACKAGE_NAME="$package_name"
+    PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[1]}")/../../$pkg_dir_name" && pwd)"
+    PKGBUILD="$PKG_DIR/PKGBUILD"
+}
+
 # Generic set_pkgver function for update scripts.
 # Requires global variables: PKGBUILD, PKG_DISPLAY_NAME
 # Resets pkgrel to 1 when pkgver changes, increments when unchanged.
@@ -100,7 +113,6 @@ set_pkgver() {
 # Shared command dispatcher for package update scripts.
 # Requires global variables: PKGBUILD, PKG_DISPLAY_NAME
 # Requires functions in caller script:
-# - get_current
 # - get_latest
 run_update_command() {
     case "${1:-status}" in
