@@ -34,14 +34,20 @@ is_package_install_needed() {
 install_pkg_if_needed() {
     local package_name="$1"
     local pkgbuild="$2"
+    local pkg_dir
     shift 2
+
+    pkg_dir="$(cd "$(dirname "$pkgbuild")" && pwd)"
 
     if ! is_package_install_needed "$package_name" "$pkgbuild"; then
         echo "$package_name $(pkgbuild_target_version "$pkgbuild") is already installed; skipping makepkg"
         return 0
     fi
 
-    makepkg "$@"
+    (
+        cd "$pkg_dir"
+        makepkg "$@"
+    )
 }
 
 git_has_local_changes() {
