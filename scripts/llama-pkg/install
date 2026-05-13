@@ -2,7 +2,7 @@
 set -euo pipefail
 
 function prepare_dirs {
-   mkdir -p "$HOME/.llama.cpp/models"
+    mkdir -p "$HOME/.llama.cpp/models"
 }
 
 function install_models_ini {
@@ -12,15 +12,20 @@ function install_models_ini {
 
     # Create or update the models.ini file
     cp -u "$source_models_ini" "$target_models_ini"
-  
+
     # Replace the placeholder with the actual path
     sed -i "s|TARGET_PATH|$full_models_path|g" "$target_models_ini"
 
     echo "Config file '$target_models_ini' patched with absolute paths."
 }
 
-function install_packages() {
+function install_pkg() {
     makepkg -sic
+}
+
+function reset_git {
+    git reset --hard
+    git clean -fd
 }
 
 function main {
@@ -30,10 +35,11 @@ function main {
     if [[ "${1:-}" == "config" ]]; then
         install_models_ini
     else
-        install_packages
+        install_pkg
         install_models_ini
     fi
-}   
 
+    reset_git
+}
 
 main "$@"
