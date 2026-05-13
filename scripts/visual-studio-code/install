@@ -41,6 +41,7 @@ function reset_git {
 
 function main {
     install
+    reset_git
 }
 
 main "$@"
