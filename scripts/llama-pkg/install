@@ -9,6 +9,10 @@ PACKAGE_NAME="llama-cpp"
 PKG_DIR="$(cd "${SCRIPT_DIR}/../../llama-pkg" && pwd)"
 PKGBUILD="${PKG_DIR}/PKGBUILD"
 
+function should_reset_git() {
+    [[ "${1:-}" == "cleanup" || "${1:-}" == "reset" || "${2:-}" == "cleanup" || "${2:-}" == "reset" ]]
+}
+
 function prepare_dirs {
     mkdir -p "$HOME/.llama.cpp/models"
 }
@@ -42,7 +46,9 @@ function main {
         install_models_ini
     fi
 
-    reset_git
+    if should_reset_git "${1:-}" "${2:-}"; then
+        reset_git
+    fi
 }
 
 main "$@"
