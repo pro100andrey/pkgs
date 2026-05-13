@@ -1,7 +1,7 @@
 # Maintainer: pro100Andrey
 # Local optimized package recipe for llama.cpp.
 pkgname=llama-cpp
-pkgver=9129
+pkgver=9133
 pkgrel=1
 pkgdesc="LLM inference in C/C++ (Configurable CPU/GPU build)"
 arch=('x86_64')
