@@ -131,7 +131,6 @@ build() {
     -DGGML_NATIVE=ON
     -DGGML_LTO=ON
   )
-
   cmake -B build -S "llama.cpp-b${pkgver}" -G Ninja \
     -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_EXAMPLES=OFF \
@@ -142,6 +141,10 @@ build() {
     "${cpu_flags[@]}" \
     -DCMAKE_C_FLAGS="${cflags}" \
     -DCMAKE_CXX_FLAGS="${cxxflags}"
+
+  echo ""
+  echo "==> CMake configuration variables:"
+  cmake -LH build
 
   cmake --build build -j"$(nproc)"
 }
