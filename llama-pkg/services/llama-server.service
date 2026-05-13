@@ -1,3 +1,5 @@
+# Template service unit.
+# USER_TARGET and HOME_TARGET placeholders are replaced by llama-pkg/service.
 [Unit]
 Description=Llama.cpp Server Service
 After=network.target

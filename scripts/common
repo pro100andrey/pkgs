@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Shared helper functions for package scripts in this repository.
+#
+# Provided capabilities:
+# - Compare installed package version with PKGBUILD target version.
+# - Run makepkg only when installation is needed.
+# - Optional destructive git cleanup with explicit confirmation.
+# - Dispatch common update commands: current/latest/set/status.
+
 pkgbuild_target_version() {
     local pkgbuild="$1"
     local pkgver

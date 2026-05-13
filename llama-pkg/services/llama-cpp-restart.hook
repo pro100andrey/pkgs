@@ -1,3 +1,4 @@
+# Restart llama-server automatically after llama-cpp package upgrades.
 [Trigger]
 Operation = Upgrade
 Type = Package

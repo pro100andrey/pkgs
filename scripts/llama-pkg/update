@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+# Update helper for llama-cpp PKGBUILD version fields.
+#
+# Commands are provided by run_update_command from scripts/common:
+# current | latest | set <version> | status
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../common
 source "$SCRIPT_DIR/../common"

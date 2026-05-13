@@ -1,4 +1,5 @@
 # Maintainer: pro100Andrey
+# Local optimized package recipe for llama.cpp.
 pkgname=llama-cpp
 pkgver=9128
 pkgrel=1

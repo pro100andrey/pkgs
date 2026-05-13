@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+# Build/install helper for the llama-cpp package recipe.
+#
+# Behavior:
+# - Installs only when installed package version differs from PKGBUILD target.
+# - Copies/patches models.ini into ~/.llama.cpp/models.ini.
+# - 'config' mode updates models.ini only.
+# - Optional repo cleanup is available via 'cleanup' or 'reset' argument.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../common
 source "${SCRIPT_DIR}/../common"

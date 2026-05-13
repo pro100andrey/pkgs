@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+# Workspace-level update helper.
+#
+# This script checks package recipe versions and optionally bumps outdated
+# PKGBUILD versions by delegating to package-specific update scripts.
+
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 declare -a OUTDATED_PKGS=()
@@ -13,6 +18,10 @@ Usage:
     $0 bump            Interactive version bump for outdated package recipes
   $0 <package>       Show status for a single package
     $0 <package> bump  Bump a single package recipe if outdated
+
+Notes:
+    - 'upgrade' is kept as a backward-compatible alias for 'bump'.
+    - This script updates PKGBUILD versions only; it does not build/install packages.
 EOF
 }
 

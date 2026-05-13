@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+# Systemd service manager for llama-server.
+#
+# install/uninstall require root privileges and operate on:
+# - /etc/systemd/system/llama-server.service
+# - /etc/pacman.d/hooks/llama-cpp-restart.hook
+
 readonly SERVICE_NAME="llama-server"
 readonly SERVICE_FILE="llama-server.service"
 readonly HOOK_FILE="llama-cpp-restart.hook"
@@ -70,20 +76,31 @@ function cmd_status { systemctl status "$SERVICE_NAME"; }
 function cmd_logs { journalctl -u "$SERVICE_NAME" -f; }
 
 function usage {
-    echo "Usage: $(basename "$0") {install|uninstall|start|stop|restart|status|logs}"
+    cat <<EOF
+Usage: $(basename "$0") {install|uninstall|start|stop|restart|status|logs}
+
+Commands:
+    install    Install service + pacman hook and start service (requires sudo)
+    uninstall  Remove service + hook and stop service (requires sudo)
+    start      Start service
+    stop       Stop service
+    restart    Restart service
+    status     Show service status
+    logs       Follow service logs
+EOF
     exit 1
 }
 
 function main {
     case "${1:-}" in
-        install)   cmd_install ;;
-        uninstall) cmd_uninstall ;;
-        start)     cmd_start ;;
-        stop)      cmd_stop ;;
-        restart)   cmd_restart ;;
-        status)    cmd_status ;;
-        logs)      cmd_logs ;;
-        *)         usage ;;
+    install) cmd_install ;;
+    uninstall) cmd_uninstall ;;
+    start) cmd_start ;;
+    stop) cmd_stop ;;
+    restart) cmd_restart ;;
+    status) cmd_status ;;
+    logs) cmd_logs ;;
+    *) usage ;;
     esac
 }
 

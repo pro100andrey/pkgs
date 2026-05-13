@@ -1,3 +1,4 @@
+# Local package recipe for official Visual Studio Code Linux binaries.
 pkgname=visual-studio-code
 _pkgname=visual-studio-code
 pkgver=1.120.0
