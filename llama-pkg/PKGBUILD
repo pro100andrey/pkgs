@@ -132,7 +132,6 @@ build() {
     -DGGML_LTO=ON
   )
   cmake -B build -S "llama.cpp-b${pkgver}" -G Ninja \
-    -LLAMA_ALL_WARNINGS=OFF \
     -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_EXAMPLES=OFF \
     -DCMAKE_BUILD_TYPE=Release \
