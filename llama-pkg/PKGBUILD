@@ -1,7 +1,7 @@
 # Maintainer: pro100Andrey
 # Local optimized package recipe for llama.cpp.
 pkgname=llama-cpp
-pkgver=9204
+pkgver=9222
 pkgrel=1
 pkgdesc="LLM inference in C/C++ (Configurable CPU/GPU build)"
 arch=('x86_64')
@@ -132,6 +132,7 @@ build() {
     -DGGML_LTO=ON
   )
   cmake -B build -S "llama.cpp-b${pkgver}" -G Ninja \
+    -LLAMA_ALL_WARNINGS=OFF \
     -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_EXAMPLES=OFF \
     -DCMAKE_BUILD_TYPE=Release \
@@ -141,10 +142,9 @@ build() {
     "${cpu_flags[@]}" \
     -DCMAKE_C_FLAGS="${cflags}" \
     -DCMAKE_CXX_FLAGS="${cxxflags}"
-
-  echo ""
-  echo "==> CMake configuration variables:"
-  cmake -LH build
+  # echo ""
+  # echo "==> CMake configuration variables:"
+  # cmake -LH build
 
   cmake --build build -j"$(nproc)"
 }
