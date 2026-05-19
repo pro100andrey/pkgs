@@ -139,8 +139,8 @@ build() {
     "${gpu_flags[@]}" \
     "${cuda_flags[@]}" \
     "${cpu_flags[@]}" \
-    -DCMAKE_C_FLAGS="${cflags}" \
-    -DCMAKE_CXX_FLAGS="${cxxflags}"
+    -DCMAKE_C_FLAGS="${cflags} -w" \
+    -DCMAKE_CXX_FLAGS="${cxxflags} -w"
   # echo ""
   # echo "==> CMake configuration variables:"
   # cmake -LH build
