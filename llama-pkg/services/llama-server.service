@@ -13,7 +13,9 @@ ExecStart=/usr/bin/llama-server \
   --models-preset HOME_TARGET/.llama.cpp/models.ini \
   --host 0.0.0.0 \
   --port 8080 \
-  --no-webui 
+  --no-webui \
+  --verbosity 4
+
 
 Restart=on-failure
 RestartSec=5
