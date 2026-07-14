@@ -1,0 +1,4 @@
+/home/koma/Projects/pkgs/llama-pkg/src/build/ggml/src/CMakeFiles/_CMakeLTOTest-C/bin/CMakeFiles/foo.dir
+/home/koma/Projects/pkgs/llama-pkg/src/build/ggml/src/CMakeFiles/_CMakeLTOTest-C/bin/CMakeFiles/boo.dir
+/home/koma/Projects/pkgs/llama-pkg/src/build/ggml/src/CMakeFiles/_CMakeLTOTest-C/bin/CMakeFiles/edit_cache.dir
+/home/koma/Projects/pkgs/llama-pkg/src/build/ggml/src/CMakeFiles/_CMakeLTOTest-C/bin/CMakeFiles/rebuild_cache.dir

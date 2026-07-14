@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/koma/Projects/pkgs/llama-pkg/src/build/ggml/src/CMakeFiles/_CMakeLTOTest-CXX/bin/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
