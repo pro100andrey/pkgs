@@ -1,0 +1,27 @@
+#!/bin/bash
+set -euo pipefail
+
+# Update helper for claude-desktop PKGBUILD version fields.
+#
+# Commands are provided by run_update_command from scripts/common:
+# current | latest | set <version> | status
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../common
+source "$SCRIPT_DIR/../common"
+
+init_package_env "claude-desktop" "claude-desktop"
+PKG_DISPLAY_NAME="claude-desktop"
+
+get_latest() {
+    local ver
+    # The apt index lists every published release, oldest first.
+    ver="$(curl -sfL https://downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages |
+        sed -n 's/^Version: //p' |
+        sort -V |
+        tail -n1)"
+
+    [[ -n "$ver" ]] && echo "$ver" || return 1
+}
+
+run_update_command "$@"

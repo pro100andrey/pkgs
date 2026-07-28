@@ -3,12 +3,14 @@
 This repository contains local Arch Linux package recipes and helper scripts for:
 
 - `visual-studio-code` (official binary package recipe)
+- `claude-desktop` (official binary package recipe, repackaged from the upstream `.deb`)
 - `llama-cpp` (optimized local build recipe + optional systemd service)
 
 ## Repository Layout
 
 - `scripts/`: operational helpers (status checks, version bumps, installs)
 - `visual-studio-code/`: package recipe and desktop templates
+- `claude-desktop/`: package recipe
 - `llama-pkg/`: package recipe, model presets, benchmark notes, service files
 
 ## Script Usage
@@ -26,6 +28,7 @@ This repository contains local Arch Linux package recipes and helper scripts for
 
 # Build/install package only when local installed version differs from PKGBUILD
 ./scripts/visual-studio-code/install
+./scripts/claude-desktop/install
 ./scripts/llama-pkg/install
 
 # Refresh llama preset file only
@@ -35,6 +38,23 @@ This repository contains local Arch Linux package recipes and helper scripts for
 ./scripts/visual-studio-code/install cleanup
 ./scripts/llama-pkg/install cleanup
 ```
+
+## Claude Desktop
+
+`claude-desktop/PKGBUILD` repackages the official Debian package from Anthropic's
+apt repository (`downloads.claude.ai`). The download link advertised on
+claude.ai redirects into that same pool but is behind a Cloudflare challenge,
+so the pool URL is used directly; version checks read the apt index.
+
+Cowork runs its sandbox in a QEMU virtual machine. That stack is optional here,
+so install it explicitly if Cowork is needed:
+
+```bash
+sudo pacman -S --asdeps qemu-system-x86 edk2-ovmf
+```
+
+The bash sandbox of the built-in Claude Code additionally uses `bubblewrap` and
+`socat`.
 
 ## Llama Service
 

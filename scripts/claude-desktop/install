@@ -1,0 +1,26 @@
+#!/bin/bash
+set -euo pipefail
+
+# Build/install helper for the claude-desktop package recipe.
+#
+# Behavior:
+# - Installs only when installed package version differs from PKGBUILD target.
+# - Performs repository cleanup via reset_git after execution.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../common
+source "${SCRIPT_DIR}/../common"
+
+init_package_env "claude-desktop" "claude-desktop"
+
+function install() {
+    install_pkg_if_needed "$PACKAGE_NAME" "$PKGBUILD" -sic
+}
+
+function main {
+    install
+
+    reset_git
+}
+
+main "$@"
