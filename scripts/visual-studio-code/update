@@ -23,4 +23,30 @@ get_latest() {
     [[ -n "$ver" ]] && echo "$ver" || return 1
 }
 
+_resver_url() {
+    echo "https://raw.githubusercontent.com/microsoft/vscode/$1/resources/linux/code.desktop"
+}
+
+get_resver() {
+    grep -o '^_resver=\S*' "$PKGBUILD" 2>/dev/null | sed 's/^_resver=//' || true
+}
+
+# The .desktop/.xml templates come from a git tag, which upstream pushes a few
+# days after the binary lands on update.code.visualstudio.com. Only advance
+# _resver once the tag actually exists, otherwise makepkg fails with a 404.
+post_set_pkgver() {
+    local ver="$1"
+    local resver
+    resver="$(get_resver)"
+
+    [[ "$resver" == "$ver" ]] && return 0
+
+    if curl -sfL -o /dev/null "$(_resver_url "$ver")"; then
+        sed -i "s/^_resver=.*/_resver=${ver}/" "$PKGBUILD"
+        echo "==> $PKG_DISPLAY_NAME: _resver updated to ${ver} in $PKGBUILD"
+    else
+        echo "==> $PKG_DISPLAY_NAME: git tag ${ver} not published yet, keeping _resver=${resver}"
+    fi
+}
+
 run_update_command "$@"
