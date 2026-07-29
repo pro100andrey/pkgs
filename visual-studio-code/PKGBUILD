@@ -3,6 +3,11 @@ pkgname=visual-studio-code
 _pkgname=visual-studio-code
 pkgver=1.131.0
 pkgrel=1
+# Version of the microsoft/vscode git tag used for the .desktop/.xml templates.
+# Kept separate from pkgver: the binary is published on update.code.visualstudio.com
+# before the matching tag is pushed to GitHub, so pinning these to pkgver breaks
+# the build with a 404 for a day or two after every release.
+_resver=1.130.0
 pkgdesc="Visual Studio Code (vscode): Editor for building and debugging modern web and cloud applications (official binary version)"
 arch=('x86_64' 'aarch64' 'armv7h')
 url="https://code.visualstudio.com/"
@@ -20,9 +25,9 @@ optdepends=('glib2: Needed for move to trash functionality'
   'org.freedesktop.secrets: Needed for settings sync'
   # See https://github.com/MicrosoftDocs/live-share/issues/4650
   'icu69: Needed for live share')
-source=(code-${pkgver}.desktop.in::https://raw.githubusercontent.com/microsoft/vscode/${pkgver}/resources/linux/code.desktop
-  code-${pkgver}-url-handler.desktop.in::https://raw.githubusercontent.com/microsoft/vscode/${pkgver}/resources/linux/code-url-handler.desktop
-  code-${pkgver}-workspace.xml.in::https://raw.githubusercontent.com/microsoft/vscode/${pkgver}/resources/linux/code-workspace.xml)
+source=(code-${_resver}.desktop.in::https://raw.githubusercontent.com/microsoft/vscode/${_resver}/resources/linux/code.desktop
+  code-${_resver}-url-handler.desktop.in::https://raw.githubusercontent.com/microsoft/vscode/${_resver}/resources/linux/code-url-handler.desktop
+  code-${_resver}-workspace.xml.in::https://raw.githubusercontent.com/microsoft/vscode/${_resver}/resources/linux/code-workspace.xml)
 source_x86_64=(code_x64_${pkgver}.tar.gz::https://update.code.visualstudio.com/${pkgver}/linux-x64/stable)
 source_aarch64=(code_arm64_${pkgver}.tar.gz::https://update.code.visualstudio.com/${pkgver}/linux-arm64/stable)
 source_armv7h=(code_armhf_${pkgver}.tar.gz::https://update.code.visualstudio.com/${pkgver}/linux-armhf/stable)
@@ -41,9 +46,9 @@ _set_meta_info() {
 }
 
 prepare() {
-  _set_meta_info "${srcdir}/code-${pkgver}.desktop.in" >"${srcdir}/code.desktop"
-  _set_meta_info "${srcdir}/code-${pkgver}-url-handler.desktop.in" >"${srcdir}/code-url-handler.desktop"
-  _set_meta_info "${srcdir}/code-${pkgver}-workspace.xml.in" >"${srcdir}/code-workspace.xml"
+  _set_meta_info "${srcdir}/code-${_resver}.desktop.in" >"${srcdir}/code.desktop"
+  _set_meta_info "${srcdir}/code-${_resver}-url-handler.desktop.in" >"${srcdir}/code-url-handler.desktop"
+  _set_meta_info "${srcdir}/code-${_resver}-workspace.xml.in" >"${srcdir}/code-workspace.xml"
 }
 
 _pkg() {
