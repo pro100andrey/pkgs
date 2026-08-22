@@ -14,15 +14,22 @@ declare -a OUTDATED_LATEST=()
 usage() {
     cat <<EOF
 Usage:
-  $0                 Show status for all packages
-    $0 bump            Interactive version bump for outdated package recipes
-  $0 <package>       Show status for a single package
-    $0 <package> bump  Bump a single package recipe if outdated
+  $0                    Show status for all packages
+  $0 bump               Interactive version bump for outdated package recipes
+  $0 <package>          Show status for a single package
+  $0 <package> bump     Bump a single package recipe if outdated
 
 Notes:
-    - 'upgrade' is kept as a backward-compatible alias for 'bump'.
-    - This script updates PKGBUILD versions only; it does not build/install packages.
+  - 'upgrade' is kept as a backward-compatible alias for 'bump'.
+  - This script updates PKGBUILD versions only; it does not build/install packages.
 EOF
+}
+
+# A version string is a single short token: digits, letters, dots, dashes.
+# Anything else means the package script returned garbage rather than a version.
+is_version_like() {
+    local v="$1"
+    [[ -n "$v" && "$v" != "error" && "$v" =~ ^[A-Za-z0-9][A-Za-z0-9._+~:-]{0,31}$ ]]
 }
 
 package_script() {
@@ -43,6 +50,13 @@ check_one() {
     local current latest
     current="$($script current 2>/dev/null || echo "unknown")"
     latest="$($script latest 2>/dev/null || echo "error")"
+
+    # Guard against a scraper that fell through and echoed raw payload
+    # (e.g. an unmatched sed passing a whole JSON body along).
+    if ! is_version_like "$latest"; then
+        latest="error"
+    fi
+    is_version_like "$current" || current="unknown"
 
     if [[ "$latest" == "error" || -z "$latest" ]]; then
         printf "%-25s  %-22s  (fetch error)\n" "$pkg" "$current"

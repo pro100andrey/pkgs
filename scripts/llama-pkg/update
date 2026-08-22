@@ -15,12 +15,18 @@ PKG_DISPLAY_NAME="llama-pkg"
 
 get_latest() {
     local tag
-    tag="$(curl -sfL -H "User-Agent: pkgs-update-script" "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" |
-        grep '"tag_name"' |
-        sed -E 's/.*"tag_name"\s*:\s*"b?([0-9]+)".*/\1/' |
-        head -n1)"
+    # Upstream tags nightlies as bNNNNN, but also publishes semver releases
+    # (v0.2.x) which now win /releases/latest. The PKGBUILD builds from the
+    # bNNNNN tarballs, and the release list is not ordered by build number,
+    # so take the numerically highest bNNNNN tag from the recent releases.
+    tag="$(curl -sfL -H "User-Agent: pkgs-update-script" \
+        "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=100" |
+        grep -o '"tag_name"[[:space:]]*:[[:space:]]*"b[0-9]\+"' |
+        grep -o '[0-9]\+' |
+        sort -n |
+        tail -n1)"
 
-    [[ -n "$tag" ]] && echo "$tag" || return 1
+    [[ "$tag" =~ ^[0-9]+$ ]] && echo "$tag" || return 1
 }
 
 run_update_command "$@"
