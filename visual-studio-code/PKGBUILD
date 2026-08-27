@@ -1,13 +1,13 @@
 # Local package recipe for official Visual Studio Code Linux binaries.
 pkgname=visual-studio-code
 _pkgname=visual-studio-code
-pkgver=1.134.0
+pkgver=1.135.0
 pkgrel=1
 # Version of the microsoft/vscode git tag used for the .desktop/.xml templates.
 # Kept separate from pkgver: the binary is published on update.code.visualstudio.com
 # before the matching tag is pushed to GitHub, so pinning these to pkgver breaks
 # the build with a 404 for a day or two after every release.
-_resver=1.134.0
+_resver=1.135.0
 pkgdesc="Visual Studio Code (vscode): Editor for building and debugging modern web and cloud applications (official binary version)"
 arch=('x86_64' 'aarch64' 'armv7h')
 url="https://code.visualstudio.com/"
