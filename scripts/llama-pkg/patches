@@ -1,0 +1,211 @@
+#!/bin/bash
+set -euo pipefail
+
+# Patch manager for the llama-cpp package recipe.
+#
+# Patches in llama-pkg/patches/ carry features that are not in llama.cpp master
+# yet. Each one records the fork branch it was cut from, so it can be regenerated
+# against a newer pkgver instead of being rebased by hand.
+#
+# Commands:
+#   list              Show patches, their source branch and recorded base
+#   check             Dry-run every patch against the current pkgver tarball
+#   refresh [name..]  Regenerate patches from their branch against current pkgver
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../common
+source "${SCRIPT_DIR}/../common"
+
+init_package_env "llama-cpp" "llama-pkg"
+
+PATCH_DIR="${PKG_DIR}/patches"
+UPSTREAM_REPO="ggml-org/llama.cpp"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/pkgs/llama-src"
+
+# Read one '# Key: value' field from a patch header.
+patch_field() {
+    local file="$1" key="$2"
+    sed -n "/^diff --git /q; s/^#[[:space:]]*${key}:[[:space:]]*//p" "$file" | head -n1
+}
+
+patch_files() {
+    local f found=0
+    for f in "${PATCH_DIR}"/*.patch; do
+        [[ -e "$f" ]] || continue
+        found=1
+        echo "$f"
+    done
+    [[ $found -eq 1 ]]
+}
+
+# Turn "https://github.com/owner/repo" into the "owner:repo" compare shorthand.
+repo_shorthand() {
+    local url="${1%/}"
+    url="${url%.git}"
+    printf '%s:%s\n' "$(basename "$(dirname "$url")")" "$(basename "$url")"
+}
+
+github_api() {
+    curl -sfL -H "User-Agent: pkgs-llama-patches" \
+        ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} "$@"
+}
+
+# Extract the source tarball for the current pkgver once and cache it.
+upstream_tree() {
+    local pkgver tree
+    pkgver="$(get_current)"
+    tree="${CACHE_DIR}/llama.cpp-b${pkgver}"
+
+    if [[ ! -d "$tree" ]]; then
+        mkdir -p "$CACHE_DIR"
+        echo "==> Fetching llama.cpp b${pkgver} source" >&2
+        curl -sfL "https://github.com/${UPSTREAM_REPO}/archive/refs/tags/b${pkgver}.tar.gz" |
+            tar -xz -C "$CACHE_DIR"
+    fi
+
+    echo "$tree"
+}
+
+cmd_list() {
+    local pkgver file
+    pkgver="$(get_current)"
+    printf "%-32s  %-28s  %-10s  %s\n" "Patch" "Branch" "Base" "State"
+    printf '%0.s-' {1..90}
+    echo
+
+    if ! patch_files >/dev/null; then
+        echo "(no patches in ${PATCH_DIR})"
+        return
+    fi
+
+    while read -r file; do
+        local base state
+        base="$(patch_field "$file" Base)"
+        if [[ "$base" == "b${pkgver}" ]]; then
+            state="current"
+        else
+            state="stale (pkgver is b${pkgver})"
+        fi
+        printf "%-32s  %-28s  %-10s  %s\n" \
+            "$(basename "$file")" \
+            "$(patch_field "$file" Branch)" \
+            "${base:-unknown}" \
+            "$state"
+    done < <(patch_files)
+}
+
+cmd_check() {
+    local tree file rc=0
+    tree="$(upstream_tree)"
+
+    patch_files >/dev/null || {
+        echo "No patches to check."
+        return 0
+    }
+
+    while read -r file; do
+        local name
+        name="$(basename "$file")"
+        if patch -d "$tree" -p1 --dry-run --forward --silent -i "$file" >/dev/null 2>&1; then
+            echo "ok      $name"
+        elif patch -d "$tree" -p1 -R --dry-run --force --silent -i "$file" >/dev/null 2>&1; then
+            echo "merged  $name (already in b$(get_current), can be dropped)"
+        else
+            echo "FAILED  $name"
+            rc=1
+        fi
+    done < <(patch_files)
+
+    return $rc
+}
+
+refresh_one() {
+    local file="$1"
+    local name repo branch base_tag shorthand diff header
+    name="$(basename "$file")"
+
+    if [[ ! -f "$file" ]]; then
+        echo "==> $name: no such patch in ${PATCH_DIR}" >&2
+        return 1
+    fi
+
+    repo="$(patch_field "$file" Repo)"
+    branch="$(patch_field "$file" Branch)"
+    base_tag="b$(get_current)"
+
+    if [[ -z "$repo" || -z "$branch" ]]; then
+        echo "==> $name: no Repo/Branch header, refresh manually" >&2
+        return 1
+    fi
+
+    shorthand="$(repo_shorthand "$repo")"
+    echo "==> $name: regenerating from ${shorthand}:${branch} against ${base_tag}"
+
+    diff="$(mktemp)"
+    if ! github_api -H "Accept: application/vnd.github.v3.diff" \
+        "https://api.github.com/repos/${UPSTREAM_REPO}/compare/${base_tag}...${shorthand}:${branch}" -o "$diff"; then
+        echo "==> $name: compare request failed" >&2
+        rm -f "$diff"
+        return 1
+    fi
+
+    if [[ ! -s "$diff" ]]; then
+        echo "==> $name: empty diff - the branch is fully merged into ${base_tag}?" >&2
+        rm -f "$diff"
+        return 1
+    fi
+
+    # The 'sha' media type returns the bare commit id instead of a JSON blob.
+    local head
+    head="$(github_api -H "Accept: application/vnd.github.sha" \
+        "https://api.github.com/repos/${shorthand/:/\/}/commits/${branch}" || true)"
+    [[ "$head" =~ ^[0-9a-f]{40}$ ]] || head="unknown"
+
+    # Keep the human-written header, refresh only the tracked revisions.
+    header="$(sed -n '/^diff --git /q; p' "$file" |
+        sed -e "s|^#\([[:space:]]*\)Base:.*|#\1Base:   ${base_tag}|" \
+            -e "s|^#\([[:space:]]*\)Head:.*|#\1Head:   ${head:-unknown}|")"
+
+    printf '%s\n' "$header" >"$file"
+    cat "$diff" >>"$file"
+    rm -f "$diff"
+
+    echo "==> $name: now based on ${base_tag} (head ${head:0:12})"
+}
+
+cmd_refresh() {
+    local file rc=0
+    if [[ $# -gt 0 ]]; then
+        for file in "$@"; do
+            [[ -e "$file" ]] || file="${PATCH_DIR}/$(basename "$file")"
+            refresh_one "$file" || rc=1
+        done
+    else
+        patch_files >/dev/null || {
+            echo "No patches to refresh."
+            return 0
+        }
+        while read -r file; do
+            refresh_one "$file" || rc=1
+        done < <(patch_files)
+    fi
+
+    return $rc
+}
+
+main() {
+    case "${1:-list}" in
+    list) cmd_list ;;
+    check) cmd_check ;;
+    refresh)
+        shift
+        cmd_refresh "$@"
+        ;;
+    *)
+        echo "Usage: $0 {list|check|refresh [patch...]}"
+        exit 1
+        ;;
+    esac
+}
+
+main "$@"
