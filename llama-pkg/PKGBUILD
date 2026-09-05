@@ -1,7 +1,7 @@
 # Maintainer: pro100Andrey
 # Local optimized package recipe for llama.cpp.
 pkgname=llama-cpp
-pkgver=10797
+pkgver=10816
 pkgrel=1
 pkgdesc="LLM inference in C/C++ (Configurable CPU/GPU build)"
 arch=('x86_64')
@@ -13,6 +13,49 @@ conflicts=('llama-cpp-git')
 options=('!debug' 'strip')
 source=("llama.cpp-${pkgver}.tar.gz::https://github.com/ggml-org/llama.cpp/archive/refs/tags/b${pkgver}.tar.gz")
 sha256sums=('SKIP')
+
+# Out-of-tree patches live in patches/ and are applied in filename order.
+# They carry features that are not in llama.cpp master yet, so each one is
+# expected to disappear again once upstream merges it.
+#
+#   LLAMA_PATCHES=auto (default)          -> apply every patches/*.patch
+#   LLAMA_PATCHES=off                     -> apply nothing (stock upstream build)
+#   LLAMA_PATCHES="0001-* 0003-foo.patch" -> apply only matching patches
+#
+# A patch can also be parked without touching this file by renaming it to
+# something that does not end in .patch (e.g. *.patch.disabled).
+_patches_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/patches" 2>/dev/null && pwd || true)"
+_patches_select="${LLAMA_PATCHES:-auto}"
+_patches=()
+
+if [[ -n "${_patches_dir}" && ! "${_patches_select}" =~ ^(off|none|no|0)$ ]]; then
+  for _patch_file in "${_patches_dir}"/*.patch; do
+    [[ -e "${_patch_file}" ]] || continue
+    _patch_name="${_patch_file##*/}"
+
+    if [[ "${_patches_select}" =~ ^(auto|all|on|1)$ ]]; then
+      _patches+=("${_patch_name}")
+      continue
+    fi
+
+    # Explicit selection: names or globs, separated by spaces or commas.
+    for _patch_glob in ${_patches_select//,/ }; do
+      # shellcheck disable=SC2053
+      if [[ "${_patch_name}" == ${_patch_glob} ]]; then
+        _patches+=("${_patch_name}")
+        break
+      fi
+    done
+  done
+fi
+
+# Patches are applied straight from patches/ in prepare(); makepkg's source
+# array cannot carry subdirectories for local files.
+if [[ ${#_patches[@]} -eq 0 ]]; then
+  echo "LLAMA_PATCHES=${_patches_select}: building stock upstream b${pkgver}"
+else
+  echo "LLAMA_PATCHES=${_patches_select}: ${#_patches[@]} patch(es) queued: ${_patches[*]}"
+fi
 
 # Build-time selector:
 #   LLAMA_GPU_BACKEND=auto (default)      -> auto detect (NVIDIA -> cuda, else vulkan)
@@ -66,6 +109,30 @@ cpu)
   exit 1
   ;;
 esac
+
+prepare() {
+  local patch_name
+
+  cd "$srcdir/llama.cpp-b${pkgver}"
+
+  for patch_name in "${_patches[@]}"; do
+    # A patch that reverse-applies is already in the tarball, which is what
+    # happens once upstream merges it. Skip instead of failing the build.
+    if patch -p1 -R --dry-run --force --silent -i "${_patches_dir}/${patch_name}" >/dev/null 2>&1; then
+      echo "==> ${patch_name}: already present in b${pkgver}, skipping"
+      continue
+    fi
+
+    echo "==> Applying ${patch_name}"
+    if ! patch -p1 --forward -i "${_patches_dir}/${patch_name}"; then
+      echo "" >&2
+      echo "Patch ${patch_name} does not apply to llama.cpp b${pkgver}." >&2
+      echo "Refresh it with './scripts/llama-pkg/patches refresh', drop it from" >&2
+      echo "llama-pkg/patches/, or build without patches: LLAMA_PATCHES=off" >&2
+      return 1
+    fi
+  done
+}
 
 build() {
   local gpu_flags=()

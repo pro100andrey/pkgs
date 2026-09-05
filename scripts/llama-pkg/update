@@ -29,4 +29,24 @@ get_latest() {
     [[ "$tag" =~ ^[0-9]+$ ]] && echo "$tag" || return 1
 }
 
+# Patches in llama-pkg/patches/ are cut against a specific bNNNNN tarball, so a
+# version bump can leave them stale. Warn instead of refreshing silently: a
+# refreshed patch wants a look before it goes into a build.
+post_set_pkgver() {
+    local ver="$1"
+    local file base stale=()
+
+    for file in "$PKG_DIR"/patches/*.patch; do
+        [[ -e "$file" ]] || continue
+        base="$(sed -n '/^diff --git /q; s/^#[[:space:]]*Base:[[:space:]]*//p' "$file" | head -n1)"
+        [[ "$base" == "b${ver}" ]] || stale+=("$(basename "$file")")
+    done
+
+    [[ ${#stale[@]} -gt 0 ]] || return 0
+
+    echo "==> $PKG_DISPLAY_NAME: ${#stale[@]} patch(es) still based on an older tag: ${stale[*]}"
+    echo "    Refresh with './scripts/llama-pkg/patches refresh', or build without"
+    echo "    them using LLAMA_PATCHES=off."
+}
+
 run_update_command "$@"
