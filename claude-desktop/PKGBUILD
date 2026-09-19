@@ -9,7 +9,7 @@
 # Only the .deb payload (data.tar.xz) is installed; its maintainer scripts do
 # Debian-only work: apt repository registration and an Ubuntu AppArmor profile.
 pkgname=claude-desktop
-pkgver=2.110.0
+pkgver=2.2553.1
 pkgrel=1
 pkgdesc="Claude Desktop: Anthropic desktop app for Claude with Cowork and Claude Code (official binary version)"
 arch=('x86_64' 'aarch64')
