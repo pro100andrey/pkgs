@@ -114,7 +114,7 @@ cmd_list() {
 }
 
 cmd_check() {
-    local tree file rc=0
+    local tree work file rc=0
     tree="$(upstream_tree)"
 
     patch_files >/dev/null || {
@@ -122,19 +122,25 @@ cmd_check() {
         return 0
     }
 
+    # Patches stack like in prepare(): each one is checked on top of the ones
+    # before it, so work on a throwaway copy of the cached tree.
+    work="$(mktemp -d)"
+    cp -a "$tree" "$work/tree"
+
     while read -r file; do
         local name
         name="$(basename "$file")"
-        if patch -d "$tree" -p1 --dry-run --forward --silent -i "$file" >/dev/null 2>&1; then
+        if patch -d "$work/tree" -p1 -R --dry-run --force --silent -i "$file" >/dev/null 2>&1; then
+            echo "merged  $name (already in b$(get_current) or an earlier patch, can be dropped)"
+        elif patch -d "$work/tree" -p1 --forward --silent -i "$file" >/dev/null 2>&1; then
             echo "ok      $name"
-        elif patch -d "$tree" -p1 -R --dry-run --force --silent -i "$file" >/dev/null 2>&1; then
-            echo "merged  $name (already in b$(get_current), can be dropped)"
         else
             echo "FAILED  $name"
             rc=1
         fi
     done < <(patch_files)
 
+    rm -rf "$work"
     return $rc
 }
 
@@ -153,8 +159,8 @@ refresh_one() {
     base_tag="b$(get_current)"
 
     if [[ -z "$repo" || -z "$branch" ]]; then
-        echo "==> $name: no Repo/Branch header, refresh manually" >&2
-        return 1
+        echo "==> $name: one-off patch (no Repo/Branch header), skipping"
+        return 0
     fi
 
     shorthand="$(repo_shorthand "$repo")"

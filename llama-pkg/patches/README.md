@@ -53,7 +53,9 @@ is the branch diff excluding anything upstream already has. It rewrites the
 diff body and the `Head`/`Base` header lines, keeping the description. Set
 `GITHUB_TOKEN` if you hit API rate limits.
 
-`check` caches the upstream source tree under `~/.cache/pkgs/llama-src`.
+`check` applies the patches in order on a copy of the upstream source tree
+(cached under `~/.cache/pkgs/llama-src`), so a patch may build on an earlier one.
+`refresh` skips one-off patches that have no `Repo`/`Branch` header.
 
 ## Adding a patch
 

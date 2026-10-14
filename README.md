@@ -109,6 +109,9 @@ Currently shipped:
 - `0001-prismml-bonsai.patch`: PrismML low-bit quant types and kernels for the
   Bonsai-27B 1-bit / ternary GGUFs, from
   [`PrismML-Eng/llama.cpp merge/upstream-20261011`](https://github.com/PrismML-Eng/llama.cpp/tree/merge/upstream-20261011)
+- `0002-prismml-fa-quant-kv-fix.patch`: PrismML #355, fixes out-of-bounds writes
+  in CUDA flash attention with a quantized KV cache on 3-4 token batches
+  (garbage `////` / `3333` output with `-ctk/-ctv q4_0|q8_0` on hybrid models)
 
 `LLAMA_PATCHES` selects what gets applied:
 
