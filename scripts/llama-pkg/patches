@@ -45,6 +45,25 @@ repo_shorthand() {
     printf '%s:%s\n' "$(basename "$(dirname "$url")")" "$(basename "$url")"
 }
 
+# Drop every file section of a diff whose path matches one of the given globs
+# ('*' also crosses '/'). Used for the '# Exclude:' header, e.g. to leave out
+# test-only changes that conflict with upstream but are never built.
+filter_diff() {
+    local diff="$1" glob regex="" tmp
+    shift
+    for glob in "$@"; do
+        glob="$(printf '%s' "$glob" | sed -e 's/[.+?^$()|{}]/\\&/g' -e 's/\*/.*/g')"
+        regex+="${regex:+|}${glob}"
+    done
+
+    tmp="$(mktemp)"
+    awk -v re="^(${regex})\$" '
+        /^diff --git / { path = $3; sub(/^a\//, "", path); skip = (path ~ re) }
+        !skip
+    ' "$diff" >"$tmp"
+    mv "$tmp" "$diff"
+}
+
 github_api() {
     curl -sfL -H "User-Agent: pkgs-llama-patches" \
         ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} "$@"
@@ -121,7 +140,7 @@ cmd_check() {
 
 refresh_one() {
     local file="$1"
-    local name repo branch base_tag shorthand diff header
+    local name repo branch base_tag shorthand diff header exclude
     name="$(basename "$file")"
 
     if [[ ! -f "$file" ]]; then
@@ -147,6 +166,11 @@ refresh_one() {
         echo "==> $name: compare request failed" >&2
         rm -f "$diff"
         return 1
+    fi
+
+    exclude="$(patch_field "$file" Exclude)"
+    if [[ -n "$exclude" ]]; then
+        filter_diff "$diff" $exclude
     fi
 
     if [[ ! -s "$diff" ]]; then

@@ -13,7 +13,7 @@ LLAMA_PATCHES='0001-*' ./scripts/llama-pkg/install # only matching patches
 ```
 
 A patch can also be parked by renaming it so it no longer ends in `.patch`
-(for example `0001-qwen4exp-mtp.patch.disabled`).
+(for example `0001-prismml-bonsai.patch.disabled`).
 
 If a patch turns out to be already contained in the tarball -- which is what
 happens once upstream merges it -- `prepare()` detects that and skips it
@@ -30,12 +30,15 @@ where it came from, so it can be regenerated rather than rebased by hand:
 # Branch: <branch>
 # Head:   <commit sha the diff was cut from>
 # Base:   b<pkgver the diff applies to>
+# Exclude: <optional path globs, space-separated>
 #
 # free-form description
 ```
 
 `Repo`/`Branch` are the fork the work lives on; `Base` is the upstream tag the
-diff was generated against.
+diff was generated against. `Exclude` (optional) lists path globs that `refresh`
+strips from the diff, e.g. `tests/*` when the fork's test changes conflict with
+upstream but are never built (`*` also matches `/`).
 
 ## Managing patches
 
