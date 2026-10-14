@@ -106,8 +106,9 @@ llama.cpp master yet, so each one is meant to be dropped again later.
 
 Currently shipped:
 
-- `0001-qwen4exp-mtp.patch`: the qwen4exp NextN/MTP draft head from
-  [`danielhanchen/llama.cpp qwen4exp/mtp`](https://github.com/danielhanchen/llama.cpp/tree/qwen4exp/mtp)
+- `0001-prismml-bonsai.patch`: PrismML low-bit quant types and kernels for the
+  Bonsai-27B 1-bit / ternary GGUFs, from
+  [`PrismML-Eng/llama.cpp merge/upstream-20261011`](https://github.com/PrismML-Eng/llama.cpp/tree/merge/upstream-20261011)
 
 `LLAMA_PATCHES` selects what gets applied:
 
