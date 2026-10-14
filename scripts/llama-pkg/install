@@ -7,6 +7,7 @@ set -euo pipefail
 # - Installs only when installed package version differs from PKGBUILD target.
 # - Copies/patches models.ini into ~/.llama.cpp/models.ini.
 # - 'config' mode updates models.ini only.
+# - 'force' mode rebuilds even if the same version is installed.
 # - Performs repository cleanup via reset_git after execution.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,11 +42,17 @@ function main {
 
     prepare_dirs
 
-    if [[ "${1:-}" == "config" ]]; then
+    case "${1:-}" in
+    config)
         install_models_ini
-    else
+        ;;
+    force)
+        FORCE_INSTALL=1 install_pkg
+        ;;
+    *)
         install_pkg
-    fi
+        ;;
+    esac
 
     reset_git
 }

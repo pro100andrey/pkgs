@@ -2,7 +2,7 @@
 # Local optimized package recipe for llama.cpp.
 pkgname=llama-cpp
 pkgver=11617
-pkgrel=1
+pkgrel=2
 pkgdesc="LLM inference in C/C++ (Configurable CPU/GPU build)"
 arch=('x86_64')
 url="https://github.com/ggml-org/llama.cpp"

@@ -32,6 +32,9 @@ This repository contains local Arch Linux package recipes and helper scripts for
 ./scripts/claude-desktop/install
 ./scripts/llama-pkg/install
 
+# Rebuild llama-cpp even if the same version is installed
+./scripts/llama-pkg/install force
+
 # Refresh llama preset file only
 ./scripts/llama-pkg/install config
 

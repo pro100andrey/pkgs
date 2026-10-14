@@ -19,6 +19,10 @@ If a patch turns out to be already contained in the tarball -- which is what
 happens once upstream merges it -- `prepare()` detects that and skips it
 instead of failing the build. That is the signal to delete the file.
 
+Adding, removing or changing a patch changes the built package, so bump
+`pkgrel` in `PKGBUILD` with it; otherwise `install` sees the same version and
+skips the build (`./scripts/llama-pkg/install force` rebuilds regardless).
+
 ## Patch format
 
 Each patch is a plain `patch -p1` diff prefixed with a header that records

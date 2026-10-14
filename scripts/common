@@ -39,8 +39,13 @@ install_pkg_if_needed() {
 
     pkg_dir="$(cd "$(dirname "$pkgbuild")" && pwd)"
 
-    if ! is_package_install_needed "$package_name" "$pkgbuild"; then
-        echo "$package_name $(pkgbuild_target_version "$pkgbuild") is already installed; skipping makepkg"
+    # FORCE_INSTALL=1 rebuilds even when the same version is installed, e.g.
+    # after changing build-time selectors; -f overwrites a leftover package file.
+    if [[ "${FORCE_INSTALL:-0}" == "1" ]]; then
+        echo "$package_name: forced rebuild of $(pkgbuild_target_version "$pkgbuild")"
+        set -- "$@" -f
+    elif ! is_package_install_needed "$package_name" "$pkgbuild"; then
+        echo "$package_name $(pkgbuild_target_version "$pkgbuild") is already installed; skipping makepkg (use 'force' to rebuild)"
         return 0
     fi
 
