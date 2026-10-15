@@ -1,0 +1,52 @@
+# Patch:  CUDA FA: quantized K/V decode through the in-place MMA kernel on Ada+
+# Base:   b11655
+#
+# With a quantized K/V cache, Ada and newer sent 1-2 query batches to the vec
+# kernel, which walks K/V once per Q head. For a GQA model that is gqa_ratio
+# passes over the cache (Bonsai-27B / qwen35: 6 Q heads per KV head). The
+# in-place quantized MMA kernel from 0001 handles a whole GQA group per pass,
+# so decode now takes it when the GQA optimisation applies (gqa_ratio >= 4,
+# q4_0/q8_0 K == V, head dim 128/256).
+# Also: at 3-4 queries the in-place quantized kernel now uses the narrow tile
+# (8/ncols2) instead of 64/ncols2, which only pays off for converted f16 K/V.
+#
+# RTX 4080 SUPER, Ternary-Bonsai-2-27B PQ2_0, -ctk/-ctv q4_0:
+#   FA per layer, 1 query:   128k 858 -> 244 us, 200k 1335 -> 368 us
+#   FA per layer, 3-4 q:     128k 405 -> 318 us, 200k  624 -> 495 us
+#   tg64 (no MTP):           d0 67.5 -> 71.8, d32k 55.1 -> 67.3, d128k 35.3 -> 55.6 t/s
+# test-backend-ops FLASH_ATTN_EXT: 4198/4198 OK, including 192 added GQA cases
+# (q4_0/q8_0, hs 128/256, gqa 4/6/8/12, 1-5 queries; tests not shipped here).
+# Greedy outputs at 50k and 150k context identical to the previous build.
+#
+# Applied on top of 0001-0005; one-off, no Repo/Branch header.
+diff --git a/ggml/src/ggml-cuda/fattn.cu b/ggml/src/ggml-cuda/fattn.cu
+index 65a725ceab15..04a03f7d19cb 100644
+--- a/ggml/src/ggml-cuda/fattn.cu
++++ b/ggml/src/ggml-cuda/fattn.cu
+@@ -158,8 +158,10 @@ static void ggml_cuda_flash_attn_ext_mma_f16_switch_ncols1(ggml_backend_cuda_con
+     const ggml_tensor * V = dst->src[2];
+ 
+     // keep type_KV: the F16 instantiation converts K/V to f16 into scratch that
+-    // ggml_cuda_flash_attn_ext_get_alloc_size does not reserve for the in-place quantized path
+-    if (turing_mma_available(cc) && ggml_is_quantized(V->type) && Q->ne[1] > 2 && Q->ne[1] <= 4) {
++    // ggml_cuda_flash_attn_ext_get_alloc_size does not reserve for the in-place quantized path.
++    // The in-place quantized kernel itself is faster at 3-4 queries with the narrow tile below
++    // (Bonsai-27B, 4080S, 128k q4_0 K/V: 318 vs 405 us), so the wide tile is for converted K/V only.
++    if (type_KV == GGML_TYPE_F16 && turing_mma_available(cc) && ggml_is_quantized(V->type) && Q->ne[1] > 2 && Q->ne[1] <= 4) {
+         ggml_cuda_flash_attn_ext_mma_f16_case<DKQ, DV, 64/ncols2, ncols2, type_KV>(ctx, dst);
+         return;
+     }
+@@ -676,7 +678,12 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
+                 }
+             } else {
+                 if (cc >= GGML_CUDA_CC_ADA_LOVELACE) {
+-                    if (Q->ne[1] <= 2) {
++                    // the vec kernel walks K/V once per Q head; with a GQA group the in-place quantized
++                    // MMA kernel walks it once per ncols2 heads, which wins for decode at any depth
++                    // (Bonsai-27B, 4080S, q4_0 K/V, 1 query: 858 -> 244 us at 128k, 33 -> 13 us at 4k)
++                    const bool qmma_decode = gqa_opt_applies && gqa_ratio >= 4 &&
++                        ggml_cuda_fattn_mma_kv_native_supported(dst);
++                    if (Q->ne[1] <= 2 && !qmma_decode) {
+                         return BEST_FATTN_KERNEL_VEC;
+                     }
+                 } else {
