@@ -20,7 +20,11 @@
 # branch): common/speculative.cpp and src/models/dflash.cpp re-anchored around
 # upstream's LiLiCorr changes, ggml-sycl PQ2_0/PTQ1_0 cases placed after the
 # new IQ3_* ones, and ggml-cuda/gated_delta_net.cu keeps upstream's new MMA
-# path but skips it for raw gates and the fused state gather. A 'refresh'
+# path but skips it for raw gates and the fused state gather. On CUDA,
+# qwen35 ubatches of >= 64 tokens therefore keep activated gates and the
+# unfused state gather, so prefill takes the MMA path (+5-6% pp on a 4080S
+# with Ternary-Bonsai-2-27B); decode and MTP verify keep the raw-gate fusion.
+# A 'refresh'
 # against an unchanged Head would undo that, so only refresh once the fork
 # publishes a newer merge branch.
 diff --git a/.github/workflows/build-android.yml b/.github/workflows/build-android.yml
@@ -10818,7 +10822,7 @@ index d97e8fdb0f40..08617d94dd21 100644
              get_rows_cuda_q<QK2_0, QR2_0, dequantize_q2_0>(src0_d, src1_d, dst_d,
                  ne00, nb01, nb02, nb03, ne10, ne11, ne12, nb10, nb11, nb12, nb1, nb2, nb3, stream);
 diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
-index 9fe618f855d1..1fd96b9a2afe 100644
+index 9fe618f855d1..af08267771cb 100644
 --- a/ggml/src/ggml-cuda/ggml-cuda.cu
 +++ b/ggml/src/ggml-cuda/ggml-cuda.cu
 @@ -33,6 +33,7 @@
@@ -10861,7 +10865,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
      if (ggml_cuda_should_use_mmq(src0->type, cc, ne11, /*n_experts =*/ 0)) {
          ggml_cuda_mul_mat_q(ctx, src0, src1, nullptr, dst);
          return;
-@@ -2886,6 +2898,254 @@ static bool ggml_cuda_should_fuse_rms_norm_mul_rope(const ggml_tensor * rms_norm
+@@ -2886,6 +2898,259 @@ static bool ggml_cuda_should_fuse_rms_norm_mul_rope(const ggml_tensor * rms_norm
      return true;
  }
  
@@ -11074,6 +11078,11 @@ index 9fe618f855d1..1fd96b9a2afe 100644
 +            if (gr->ne[0] != D || v->ne[3] != 1 || ggml_nelements(cur) != D) {
 +                return false;
 +            }
++            // leave prefill-sized ubatches with activated gates to the MMA path, which reads the
++            // gathered state from src[5] and knows nothing about the fused gather
++            if (ggml_get_op_params_i32(n, 1) == 0 && v->ne[2] >= 64) {
++                return false;
++            }
 +            // ggml-alloc sees the GET_ROWS as the last reader of ids, so a later node can reuse ids memory before the GDN kernel reads it
 +            const char * ids_beg = (const char *) ids->data;
 +            const char * ids_end = ids_beg + ggml_nbytes(ids);
@@ -11116,7 +11125,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
  // match gated_delta_net + the strided cpy that scatters its state snapshots into the cache
  // (slot i -> rollback group i, slot 0 newest), so the kernel can write them and skip the cpy.
  static int ggml_cuda_try_gdn_cache_fusion(
-@@ -3653,15 +3913,220 @@ static bool ggml_cuda_can_fuse(const struct ggml_cgraph *                cgraph,
+@@ -3653,15 +3918,220 @@ static bool ggml_cuda_can_fuse(const struct ggml_cgraph *                cgraph,
      return false;
  }
  
@@ -11337,7 +11346,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
      if (node->op == GGML_OP_MUL_MAT_ID && cuda_ctx->stream_context().concurrent_events.empty() &&
              ggml_cuda_match_shared_expert(cgraph, i, i + 3) &&
              ggml_cuda_should_fuse_mul_mat_vec_q(cgraph->nodes[i + 2]->src[1])) {
-@@ -3799,6 +4264,31 @@ static int ggml_cuda_try_fuse(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph
+@@ -3799,6 +4269,31 @@ static int ggml_cuda_try_fuse(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph
          }
      }
  
@@ -11369,7 +11378,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
      //RoPE + view + set-rows
      if (ggml_cuda_can_fuse(cgraph, i, { GGML_OP_ROPE, GGML_OP_VIEW, GGML_OP_SET_ROWS }, {})) {
          ggml_tensor * rope     = cgraph->nodes[i];
-@@ -3855,6 +4345,41 @@ static int ggml_cuda_try_fuse(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph
+@@ -3855,6 +4350,41 @@ static int ggml_cuda_try_fuse(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph
          }
      }
  
@@ -11411,7 +11420,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
      // multi-(add or mul)
      if (node->op == GGML_OP_ADD || node->op == GGML_OP_MUL) {
          int     n_fuse = 0;
-@@ -4457,6 +4982,49 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
+@@ -4457,6 +4987,49 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
      ggml_cuda_concurrent_event * concurrent_event           = nullptr;
      bool                         should_launch_concurrent_events = false;
  
@@ -11461,7 +11470,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
      const auto try_launch_concurrent_event = [&](const ggml_tensor * node) {
          if (stream_ctx.concurrent_events.find(node) != stream_ctx.concurrent_events.end()) {
              concurrent_event = &stream_ctx.concurrent_events[node];
-@@ -4477,6 +5045,10 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
+@@ -4477,6 +5050,10 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
      };
  
      while (!graph_evaluated_or_captured) {
@@ -11472,7 +11481,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
          // Only perform the graph execution if CUDA graphs are not enabled, or we are capturing the graph.
          // With the use of CUDA graphs, the execution will be performed by the graph launch.
          if (!use_cuda_graph || cuda_graph_update_required) {
-@@ -4544,6 +5116,9 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
+@@ -4544,6 +5121,9 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
                  stream_ctx.concurrent_events.clear();
              }
  
@@ -11482,7 +11491,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
              for (int i = 0; i < cgraph->n_nodes; i++) {
                  ggml_tensor * node = cgraph->nodes[i];
                  if (is_concurrent_event_active) {
-@@ -4586,6 +5161,79 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
+@@ -4586,6 +5166,79 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
                      continue;
                  }
  
@@ -11562,7 +11571,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
                  int nodes_to_skip = ggml_cuda_try_fuse(cuda_ctx, cgraph, i);
  
                  if (nodes_to_skip != 0) {
-@@ -4598,6 +5246,51 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
+@@ -4598,6 +5251,51 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
                      i += nodes_to_skip;
                      continue;
                  }
@@ -11614,7 +11623,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
  #ifndef NDEBUG
                  // On integrated GPUs (APUs, e.g. RDNA3.5) the scheduler may place a
                  // node's output on the host-visible buffer, which the compute path
-@@ -4662,6 +5355,12 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
+@@ -4662,6 +5360,12 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
          graph_evaluated_or_captured = true;
  #endif  // USE_CUDA_GRAPH
      }
@@ -11627,7 +11636,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
  }
  
  #ifdef USE_CUDA_GRAPH
-@@ -5366,12 +6065,13 @@ static void ggml_backend_cuda_device_get_memory(ggml_backend_dev_t dev, size_t *
+@@ -5366,12 +6070,13 @@ static void ggml_backend_cuda_device_get_memory(ggml_backend_dev_t dev, size_t *
  static enum ggml_backend_dev_type ggml_backend_cuda_device_get_type(ggml_backend_dev_t dev) {
      ggml_backend_cuda_device_context * ctx = (ggml_backend_cuda_device_context *) dev->context;
  
@@ -11646,7 +11655,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
  }
  
  static void ggml_backend_cuda_device_get_props(ggml_backend_dev_t dev, ggml_backend_dev_props * props) {
-@@ -5510,6 +6210,8 @@ static bool ggml_backend_cuda_device_supports_op(ggml_backend_dev_t dev, const g
+@@ -5510,6 +6215,8 @@ static bool ggml_backend_cuda_device_supports_op(ggml_backend_dev_t dev, const g
                      case GGML_TYPE_F16:
                      case GGML_TYPE_Q1_0:
                      case GGML_TYPE_Q2_0:
@@ -11655,7 +11664,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
                      case GGML_TYPE_Q4_0:
                      case GGML_TYPE_Q4_1:
                      case GGML_TYPE_Q5_0:
-@@ -5549,6 +6251,8 @@ static bool ggml_backend_cuda_device_supports_op(ggml_backend_dev_t dev, const g
+@@ -5549,6 +6256,8 @@ static bool ggml_backend_cuda_device_supports_op(ggml_backend_dev_t dev, const g
                      case GGML_TYPE_I32:
                      case GGML_TYPE_Q1_0:
                      case GGML_TYPE_Q2_0:
@@ -11664,7 +11673,7 @@ index 9fe618f855d1..1fd96b9a2afe 100644
                      case GGML_TYPE_Q4_0:
                      case GGML_TYPE_Q4_1:
                      case GGML_TYPE_Q5_0:
-@@ -5853,7 +6557,17 @@ static bool ggml_backend_cuda_device_supports_op(ggml_backend_dev_t dev, const g
+@@ -5853,7 +6562,17 @@ static bool ggml_backend_cuda_device_supports_op(ggml_backend_dev_t dev, const g
          case GGML_OP_RWKV_WKV7:
              return true;
          case GGML_OP_GATED_DELTA_NET:
@@ -27082,7 +27091,7 @@ index 000000000000..4dcdcdada7d8
 +    ggml_build_forward_expand(gf, cur);
 +}
 diff --git a/src/models/models.h b/src/models/models.h
-index a55983cfbc0f..0b68a64970e0 100644
+index a55983cfbc0f..514b800fbc03 100644
 --- a/src/models/models.h
 +++ b/src/models/models.h
 @@ -88,6 +88,20 @@ struct llm_build_delta_net_base : public llm_graph_context {
@@ -27140,7 +27149,7 @@ index a55983cfbc0f..0b68a64970e0 100644
  
  struct llama_model_qwen3moe : public llama_model_base {
      llama_model_qwen3moe(const struct llama_model_params & params) : llama_model_base(params) {}
-@@ -2418,6 +2450,10 @@ struct llama_model_qwen35 : public llama_model_base {
+@@ -2418,6 +2450,11 @@ struct llama_model_qwen35 : public llama_model_base {
  
      struct graph : public llm_build_delta_net_base {
          graph(const llama_model & model, const llm_graph_params & params);
@@ -27148,14 +27157,15 @@ index a55983cfbc0f..0b68a64970e0 100644
 +        // device-dependent path choices, scanned once per graph build (not per layer)
 +        bool gdn_state_rows_dev_ok = true; // every GPU device is Metal: fused GDN may read state rows in place
 +        bool gdn_raw_gates_dev_ok  = true; // every device is CPU/Metal/CUDA/ROCm/MUSA: fused GDN takes raw gates
++        bool gdn_has_cuda          = false; // a CUDA GPU runs GDN: large ubatches go to its MMA path
      private:
          ggml_tensor * build_layer_attn(
          llm_graph_input_attn_kv * inp_attn,
 diff --git a/src/models/qwen35.cpp b/src/models/qwen35.cpp
-index 802f2e2f13e9..0a05538b8c37 100644
+index 802f2e2f13e9..ed07d24447f2 100644
 --- a/src/models/qwen35.cpp
 +++ b/src/models/qwen35.cpp
-@@ -140,6 +140,31 @@ llama_model_qwen35::graph::graph(const llama_model & model, const llm_graph_para
+@@ -140,6 +140,34 @@ llama_model_qwen35::graph::graph(const llama_model & model, const llm_graph_para
  
      GGML_ASSERT(n_embd_head == hparams.n_embd_head_k());
  
@@ -27178,6 +27188,9 @@ index 802f2e2f13e9..0a05538b8c37 100644
 +        if (is_gpu && strcmp(reg_name, "MTL") != 0) {
 +            gdn_state_rows_dev_ok = false;
 +        }
++        if (is_gpu && strcmp(reg_name, "CUDA") == 0) {
++            gdn_has_cuda = true;
++        }
 +        if (strcmp(reg_name, "MTL") != 0 && strcmp(reg_name, "CUDA") != 0 &&
 +            strcmp(reg_name, "ROCm") != 0 && strcmp(reg_name, "MUSA") != 0 && strcmp(reg_name, "CPU") != 0) {
 +            gdn_raw_gates_dev_ok = false;
@@ -27187,7 +27200,7 @@ index 802f2e2f13e9..0a05538b8c37 100644
      int sections[4];
      std::copy(std::begin(hparams.rope_sections), std::begin(hparams.rope_sections) + 4, sections);
  
-@@ -155,6 +180,15 @@ llama_model_qwen35::graph::graph(const llama_model & model, const llm_graph_para
+@@ -155,6 +183,15 @@ llama_model_qwen35::graph::graph(const llama_model & model, const llm_graph_para
      ggml_tensor * inp_pos     = build_inp_pos();
      ggml_tensor * inp_out_ids = build_inp_out_ids();
  
@@ -27203,7 +27216,7 @@ index 802f2e2f13e9..0a05538b8c37 100644
      // MTP/NextN layers are loaded as extra decoder blocks but not executed in the main pass.
      for (int il = 0; il < n_layer; ++il) {
          res->t_layer_inp[il] = inpL;
-@@ -204,8 +238,43 @@ llama_model_qwen35::graph::graph(const llama_model & model, const llm_graph_para
+@@ -204,8 +241,43 @@ llama_model_qwen35::graph::graph(const llama_model & model, const llm_graph_para
  
          // Input for next layer
          inpL = cur;
@@ -27247,7 +27260,7 @@ index 802f2e2f13e9..0a05538b8c37 100644
  
      cur = build_norm(cur, model.output_norm, nullptr, LLM_NORM_RMS, -1);
  
-@@ -258,9 +327,9 @@ ggml_tensor * llama_model_qwen35::graph::build_norm_gated(
+@@ -258,9 +330,9 @@ ggml_tensor * llama_model_qwen35::graph::build_norm_gated(
          ggml_tensor * gate,
          int           layer) {
      ggml_tensor * normalized = build_norm(input, weights, nullptr, LLM_NORM_RMS, layer);
@@ -27259,7 +27272,7 @@ index 802f2e2f13e9..0a05538b8c37 100644
  }
  
  ggml_tensor * llama_model_qwen35::graph::build_layer_attn(
-@@ -371,6 +440,8 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
+@@ -371,6 +443,8 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
      beta = ggml_reshape_4d(ctx0, beta, 1, num_v_heads, n_seq_tokens, n_seqs);
      cb(beta, "beta", il);
  
@@ -27268,7 +27281,7 @@ index 802f2e2f13e9..0a05538b8c37 100644
      beta = ggml_sigmoid(ctx0, beta);
      cb(beta, "beta_sigmoid", il);
  
-@@ -378,6 +449,22 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
+@@ -378,6 +452,25 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
      alpha = ggml_reshape_3d(ctx0, alpha, num_v_heads, n_seq_tokens, n_seqs);
      cb(alpha, "alpha", il);
  
@@ -27276,8 +27289,11 @@ index 802f2e2f13e9..0a05538b8c37 100644
 +    // the activated nodes below only stay in the graph on paths that still need them
 +    // only where the fused op implements raw gates natively (CPU, Metal, CUDA/ROCm); other
 +    // backends would fall back to the CPU for the whole op, which costs more than the four launches
++    // CUDA's tensor-core GDN path (gated-delta-net-mma.cu, n_tokens >= 64) only takes activated
++    // gates, and on prefill it beats folding the activations into the scalar kernel
 +    static const bool raw_gates_disable = getenv("GGML_GDN_RAW_GATES_DISABLE") != nullptr;
-+    if (!raw_gates_disable && gdn_raw_gates_dev_ok &&
++    const bool gdn_cuda_mma_ubatch = gdn_has_cuda && n_seq_tokens >= 64;
++    if (!raw_gates_disable && gdn_raw_gates_dev_ok && !gdn_cuda_mma_ubatch &&
 +        model.layers[il].ssm_dt && model.layers[il].ssm_dt->type == GGML_TYPE_F32 &&
 +        model.layers[il].ssm_a  && model.layers[il].ssm_a->type  == GGML_TYPE_F32) {
 +        gdn_raw_beta    = beta_raw;
@@ -27291,7 +27307,7 @@ index 802f2e2f13e9..0a05538b8c37 100644
      ggml_tensor * alpha_biased   = ggml_add(ctx0, alpha, model.layers[il].ssm_dt);
      ggml_tensor * alpha_softplus = ggml_softplus(ctx0, alpha_biased);
      cb(alpha_softplus, "a_softplus", il);
-@@ -396,9 +483,26 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
+@@ -396,9 +489,26 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
  
      ggml_tensor * conv_input = build_conv_state(inp, conv_states_all, qkv_mixed, conv_kernel_size, conv_channels, il);
  
@@ -27321,7 +27337,7 @@ index 802f2e2f13e9..0a05538b8c37 100644
  
      ggml_tensor * conv_output_proper = ggml_ssm_conv(ctx0, conv_input, conv_kernel);
      cb(conv_output_proper, "conv_output_raw", il);
-@@ -438,8 +542,20 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
+@@ -438,8 +548,20 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
  
      const float eps_norm = hparams.f_norm_rms_eps;
  
@@ -27344,7 +27360,7 @@ index 802f2e2f13e9..0a05538b8c37 100644
  
      //q_conv = ggml_cont_4d(ctx0, q_conv, head_k_dim, num_k_heads, n_seq_tokens, n_seqs);
      //k_conv = ggml_cont_4d(ctx0, k_conv, head_k_dim, num_k_heads, n_seq_tokens, n_seqs);
-@@ -457,7 +573,8 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
+@@ -457,7 +579,8 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
      cb(k_conv, "k_conv_predelta", il);
      cb(v_conv, "v_conv_predelta", il);
  
@@ -27354,7 +27370,7 @@ index 802f2e2f13e9..0a05538b8c37 100644
  
      // z: [head_dim, n_heads, n_tokens, n_seqs] -> [n_heads * n_tokens * n_seqs, head_dim]
      ggml_tensor * z_2d = ggml_reshape_4d(ctx0, z, head_v_dim, num_v_heads, n_seq_tokens, n_seqs);
-@@ -651,9 +768,18 @@ llama_model_qwen35::graph_mtp::graph_mtp(const llama_model & model, const llm_gr
+@@ -651,9 +774,18 @@ llama_model_qwen35::graph_mtp::graph_mtp(const llama_model & model, const llm_gr
      cur = build_norm(cur, head_norm_w, nullptr, LLM_NORM_RMS, -1);
  
      cb(cur, "h_nextn", -1);
