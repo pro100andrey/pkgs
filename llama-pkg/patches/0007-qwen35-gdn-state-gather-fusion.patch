@@ -1,0 +1,34 @@
+# Patch:  qwen35: gather the ubatch recurrent states with their own get_rows again
+# Base:   b11658
+#
+# Upstream's build_rs now gathers every state with one get_rows and hands the
+# ubatch states on as a view of it. 0001's CUDA fusion that folds the state
+# gather into the GDN kernel (ggml_cuda_try_gdn_gather_skip) only matches
+# GET_ROWS -> RESHAPE -> GATED_DELTA_NET with a single user, so it stopped
+# firing and every GDN layer copied its 3 MB state first (48 x ~6 us per token
+# on Bonsai-27B). build_rs's custom-getter hook restores the separate gather.
+#
+# RTX 4080 SUPER, Ternary-Bonsai-2-27B PQ2_0, q4_0 K/V:
+#   tg128: 69.1/68.8 -> 70.7/70.8 t/s; MTP (n_max 3) server: 141.0/140.5 -> 142.8/144.8 t/s
+#   perplexity unchanged (4.2121); greedy MTP outputs and draft acceptance identical.
+#
+# Applied on top of 0001-0006; one-off, no Repo/Branch header.
+diff --git a/src/models/qwen35.cpp b/src/models/qwen35.cpp
+index ed07d24447f2..03fe3f43b25e 100644
+--- a/src/models/qwen35.cpp
++++ b/src/models/qwen35.cpp
+@@ -505,7 +505,13 @@ ggml_tensor * llama_model_qwen35::graph::build_layer_attn_linear(
+         state = build_rs_cache_view(inp, ssm_states_all, hparams.n_embd_s(), n_seqs);
+         cb(state, "state_cache_view", il);
+     } else {
+-        state = build_rs(inp, ssm_states_all, hparams.n_embd_s(), n_seqs);
++        // gather the ubatch states with their own get_rows: GET_ROWS -> RESHAPE -> GDN is the shape the
++        // CUDA graph evaluator folds into the GDN kernel (ggml_cuda_try_gdn_gather_skip); the default
++        // view of the combined gather has a second user and is never folded (one 3 MB copy per layer)
++        state = build_rs(inp, ssm_states_all, hparams.n_embd_s(), n_seqs,
++                [](ggml_context * ctx, ggml_tensor * states, ggml_tensor * ids) {
++                    return ggml_get_rows(ctx, states, ids);
++                });
+         state = ggml_reshape_4d(ctx0, state, head_v_dim, head_v_dim, num_v_heads, n_seqs);
+         cb(state, "state_predelta", il);
+     }
