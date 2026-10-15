@@ -1,5 +1,5 @@
 # Patch:  PrismML CUDA fix: quantized K/V in the short-query MMA FA path
-# Base:   b11642
+# Base:   b11645
 #
 # Fix from PrismML-Eng/llama.cpp that postdates the merge/upstream-20261011
 # branch 0001 is cut from:

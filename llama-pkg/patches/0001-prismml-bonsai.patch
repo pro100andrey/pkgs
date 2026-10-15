@@ -2,7 +2,7 @@
 # Repo:   https://github.com/PrismML-Eng/llama.cpp
 # Branch: merge/upstream-20261011
 # Head:   31eb0812d370ec17c899edd9dfee223b390340fc
-# Base:   b11642
+# Base:   b11645
 # Exclude: tests/*
 #
 # PrismML's fork carrying the low-bit quant types, FWHT/Hadamard rotation and
