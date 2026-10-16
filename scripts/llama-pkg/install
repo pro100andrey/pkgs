@@ -35,7 +35,7 @@ function install_models_ini {
 }
 
 function install_pkg() {
-    install_pkg_if_needed "$PACKAGE_NAME" "$PKGBUILD" -sic
+    install_pkg_if_needed "$PACKAGE_NAME" "$PKGBUILD" -Csic
 }
 
 function main {
