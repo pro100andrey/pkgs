@@ -24473,7 +24473,7 @@ diff --git a/src/llama-ext.h b/src/llama-ext.h
 index b8c5e8033e89..413c37a0100c 100644
 --- a/src/llama-ext.h
 +++ b/src/llama-ext.h
-@@ -148,9 +148,99 @@ LLAMA_API int32_t llama_model_dflash_selector_top_k(const struct llama_model * m
+@@ -148,6 +148,9 @@
  LLAMA_API const int32_t * llama_model_target_layer_ids  (const struct llama_model * model);
  // returns the number of extracted layers from target model
  LLAMA_API uint32_t        llama_model_target_layer_ids_n(const struct llama_model * model);
@@ -24483,9 +24483,10 @@ index b8c5e8033e89..413c37a0100c 100644
  
  // retrieves the whole token embedding matrix in F32 format (n_embd * n_vocab)
  // returns total number of elements or 0 on error
- // if out is nullptr, returns the number of tokens without writing to out
- // caller must allocate enough memory for out before calling
- LLAMA_API uint32_t llama_model_get_tok_embd(const struct llama_model * model, float * out);
+@@ -161,3 +164,90 @@
+ 
+ // realtime models: number of tokens the output lags behind the audio input, used by mtmd; 0 if not applicable
+ LLAMA_API uint32_t llama_model_n_tokens_delay(const struct llama_model * model);
 +
 +//
 +// multi-layer hidden-state tap (EAGLE3 / dspark target-feature reuse)
