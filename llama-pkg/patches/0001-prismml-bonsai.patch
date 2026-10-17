@@ -32,6 +32,12 @@
 # width-based vectorized dispatch (32/128-thread blocks for narrow rows), so
 # the fork's GB10-only GGML_CUDA_GB10_RMS128 path is dropped; the fused
 # add+rms_norm kernels are kept. Drop those two hunks again after a refresh.
+#
+# b11707: the models.h hunk adding the gdn_*_dev_ok fields to
+# llama_model_qwen35::graph carries the struct's own header lines as context;
+# with only the generic 'struct graph : llm_build_delta_net_base' lines, patch
+# put them into llama_model_qwen3next (identical context, nearer the expected
+# offset) and qwen35.cpp failed to compile. Keep that context after a refresh.
 diff --git a/.github/workflows/build-android.yml b/.github/workflows/build-android.yml
 index 4db7c2269044..968928ba0f7c 100644
 --- a/.github/workflows/build-android.yml
@@ -27109,7 +27115,11 @@ index a55983cfbc0f..514b800fbc03 100644
  
  struct llama_model_qwen3moe : public llama_model_base {
      llama_model_qwen3moe(const struct llama_model_params & params) : llama_model_base(params) {}
-@@ -2418,6 +2450,11 @@ struct llama_model_qwen35 : public llama_model_base {
+@@ -2414,13 +2446,18 @@ struct llama_model_qwen3moe : public llama_model_base {
+ struct llama_model_qwen35 : public llama_model_base {
+     llama_model_qwen35(const struct llama_model_params & params) : llama_model_base(params) {}
+     void load_arch_hparams(llama_model_loader & ml) override;
+     void load_arch_tensors(llama_model_loader & ml) override;
  
      struct graph : public llm_build_delta_net_base {
          graph(const llama_model & model, const llm_graph_params & params);
@@ -27121,6 +27131,9 @@ index a55983cfbc0f..514b800fbc03 100644
      private:
          ggml_tensor * build_layer_attn(
          llm_graph_input_attn_kv * inp_attn,
+                     ggml_tensor * cur,
+                     ggml_tensor * inp_pos,
+                             int * sections,
 diff --git a/src/models/qwen35.cpp b/src/models/qwen35.cpp
 index 802f2e2f13e9..ed07d24447f2 100644
 --- a/src/models/qwen35.cpp
