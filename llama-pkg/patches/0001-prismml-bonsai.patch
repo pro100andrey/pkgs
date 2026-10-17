@@ -27,6 +27,11 @@
 # A 'refresh'
 # against an unchanged Head would undo that, so only refresh once the fork
 # publishes a newer merge branch.
+#
+# b11703: upstream rewrote the ggml-cuda/norm.cu rms_norm launchers into a
+# width-based vectorized dispatch (32/128-thread blocks for narrow rows), so
+# the fork's GB10-only GGML_CUDA_GB10_RMS128 path is dropped; the fused
+# add+rms_norm kernels are kept. Drop those two hunks again after a refresh.
 diff --git a/.github/workflows/build-android.yml b/.github/workflows/build-android.yml
 index 4db7c2269044..968928ba0f7c 100644
 --- a/.github/workflows/build-android.yml
@@ -15207,52 +15212,6 @@ index d804b933bbb5..922e7dae3ea9 100644
  template <int block_size>
  static __global__ void rms_norm_back_f32(
          const float * grad, const float * xf, float * dst, const int ncols, const float eps) {
-@@ -338,7 +391,21 @@ static void rms_norm_f32_cuda(
-         const int64_t stride_row, const int64_t stride_channel, const int64_t stride_sample, const float eps, cudaStream_t stream,
-         const float scale_out = 1.0f) {
-     const dim3 blocks_num(nrows, MIN(nchannels, UINT16_MAX), MIN(nsamples, UINT16_MAX));
--    if (ncols < 1024) {
-+    static const bool rms128_enabled = [] {
-+        const char * env = getenv("GGML_CUDA_GB10_RMS128");
-+        return !env || std::atoi(env) != 0;
-+    }();
-+    const bool use_rms128 = !do_scale && ggml_cuda_info().devices[ggml_cuda_get_device()].cc == GGML_CUDA_CC_DGX_SPARK &&
-+        ncols <= 128 && rms128_enabled;
-+    if (use_rms128) {
-+        const dim3 block_dims(128, 1, 1);
-+        const ggml_cuda_kernel_launch_params launch_params = {blocks_num, block_dims, 32 * sizeof(float), stream};
-+        ggml_cuda_kernel_launch(rms_norm_f32<128, false>, launch_params,
-+            x, dst, ncols, nchannels, nsamples, stride_row, stride_channel, stride_sample, eps,
-+        // underlying cudaLaunchKernelEx does not support default params
-+        nullptr, 0, 0, 0, make_uint3(0, 0, 0), make_uint3(0, 0, 0), make_uint3(0, 0, 0), make_uint3(0, 0, 0),
-+        nullptr, 0, 0, 0, make_uint3(0, 0, 0), make_uint3(0, 0, 0), make_uint3(0, 0, 0), make_uint3(0, 0, 0), 1.0f);
-+    } else if (ncols < 1024) {
-         const dim3 block_dims(256, 1, 1);
-         const ggml_cuda_kernel_launch_params launch_params = {blocks_num, block_dims, block_dims.x > WARP_SIZE ? 32 * sizeof(float): 0, stream};
-         ggml_cuda_kernel_launch(rms_norm_f32<256, false, false, do_scale>, launch_params,
-@@ -393,7 +460,21 @@ static void rms_norm_mul_f32_cuda(const float *  x,
-         const uint3 mul_nrows_packed     = init_fastdiv_values(mul_nrows);
-         const uint3 mul_nchannels_packed = init_fastdiv_values(mul_nchannels);
-         const uint3 mul_nsamples_packed  = init_fastdiv_values(mul_nsamples);
--        if (ncols < 1024) {
-+        static const bool rms128_enabled = [] {
-+            const char * env = getenv("GGML_CUDA_GB10_RMS128");
-+            return !env || std::atoi(env) != 0;
-+        }();
-+        const bool use_rms128 = ggml_cuda_info().devices[ggml_cuda_get_device()].cc == GGML_CUDA_CC_DGX_SPARK &&
-+            ncols <= 128 && rms128_enabled;
-+        if (use_rms128) {
-+            const dim3 block_dims(128, 1, 1);
-+            const ggml_cuda_kernel_launch_params launch_params = ggml_cuda_kernel_launch_params{blocks_num, block_dims, 32 * sizeof(float), stream};
-+            ggml_cuda_kernel_launch(rms_norm_f32<128, true>, launch_params,
-+                x, dst, ncols, nchannels, nsamples, stride_row, stride_channel, stride_sample, eps, mul, mul_stride_row, mul_stride_channel,
-+                mul_stride_sample, mul_ncols_packed, mul_nrows_packed, mul_nchannels_packed, mul_nsamples_packed,
-+                // underlying cudaLaunchKernelEx does not support default params
-+            nullptr, 0, 0, 0, make_uint3(0, 0, 0), make_uint3(0, 0, 0), make_uint3(0, 0, 0), make_uint3(0, 0, 0), 1.0f);
-+        } else if (ncols < 1024) {
-             const dim3 block_dims(256, 1, 1);
-             const ggml_cuda_kernel_launch_params launch_params = ggml_cuda_kernel_launch_params{blocks_num, block_dims, block_dims.x > WARP_SIZE ? 32 * sizeof(float): 0, stream};
-             ggml_cuda_kernel_launch(rms_norm_f32<256, true>, launch_params,
 @@ -532,6 +613,71 @@ void ggml_cuda_op_rms_norm(ggml_backend_cuda_context & ctx, ggml_tensor * dst) {
      rms_norm_f32_cuda(src0_d, dst_d, ne00, ne01, ne02, ne03, s01, s02, s03, eps, stream);
  }
