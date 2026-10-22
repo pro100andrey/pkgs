@@ -45,6 +45,9 @@
 # only add the PTQ1_0 rows-per-block branch, carry the new pf_dist into the
 # re-indented loop and keep mul_mat_vec_q_launch; the fork's HIP Q1_0 unpack
 # hunks in vecdotq.cuh are dropped.
+#
+# b11803: common/speculative.cpp gained '#include <fstream>' after <cstring>;
+# the include hunk's trailing context follows it.
 diff --git a/.github/workflows/build-android.yml b/.github/workflows/build-android.yml
 index 4db7c2269044..968928ba0f7c 100644
 --- a/.github/workflows/build-android.yml
@@ -2891,9 +2894,9 @@ index 701093308292..2f907be0e15c 100644
 +#include <cstdlib>
  #include <cstring>
 +#include <limits>
+ #include <fstream>
  #include <iomanip>
  #include <map>
- #include <cinttypes>
 @@ -202,6 +214,14 @@ struct common_speculative_impl {
  
      virtual ~common_speculative_impl() = default;
