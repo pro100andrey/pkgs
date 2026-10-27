@@ -14,11 +14,16 @@
 #
 # Applied on top of 0001/0002; no Repo/Branch header on purpose, so
 # 'patches refresh' leaves it alone.
+#
+# b11927: ggml_cuda_graph_update_executable no longer takes the key (upstream
+# split it from the launch), so that hunk is gone; the indexer-cache hunk in
+# llama-memory-hybrid-idx.cpp follows the new no_alloc / n_pad-less signature.
+
 diff --git a/ggml/src/ggml-cuda/common.cuh b/ggml/src/ggml-cuda/common.cuh
-index 1a8097540659..747725efafee 100644
+index 8a5a72e..9b6209d 100644
 --- a/ggml/src/ggml-cuda/common.cuh
 +++ b/ggml/src/ggml-cuda/common.cuh
-@@ -1683,13 +1683,19 @@ struct ggml_backend_cuda_context {
+@@ -1680,13 +1680,19 @@ struct ggml_backend_cuda_context {
      int curr_stream_no = 0;
  
  #ifdef USE_CUDA_GRAPH
@@ -42,7 +47,7 @@ index 1a8097540659..747725efafee 100644
          const int64_t time_now = ggml_time_us();
  
          // sweep every 5s, evicting cuda graphs unused for >=10s
-@@ -1704,9 +1710,9 @@ struct ggml_backend_cuda_context {
+@@ -1701,9 +1707,9 @@ struct ggml_backend_cuda_context {
              }
          }
  
@@ -55,10 +60,10 @@ index 1a8097540659..747725efafee 100644
          it->second->last_used_time = time_now;
          return it->second.get();
 diff --git a/ggml/src/ggml-cuda/ggml-cuda.cu b/ggml/src/ggml-cuda/ggml-cuda.cu
-index af08267771cb..0b04ebf1e75e 100644
+index 8197897..96f0005 100644
 --- a/ggml/src/ggml-cuda/ggml-cuda.cu
 +++ b/ggml/src/ggml-cuda/ggml-cuda.cu
-@@ -2735,14 +2735,40 @@ static bool ggml_cuda_graph_check_compability(ggml_cgraph * cgraph) {
+@@ -2806,14 +2806,40 @@ static bool ggml_cuda_graph_check_compability(ggml_cgraph * cgraph) {
      return use_cuda_graph;
  }
  
@@ -102,16 +107,7 @@ index af08267771cb..0b04ebf1e75e 100644
      ggml_cuda_graph * graph = cuda_ctx->cuda_graph(graph_key);
  
      if (cgraph->uid != 0 &&
-@@ -2783,7 +2809,7 @@ static bool ggml_cuda_graph_update_required(ggml_backend_cuda_context * cuda_ctx
-     return res;
- }
- 
--static void ggml_cuda_graph_update_executable(ggml_backend_cuda_context * cuda_ctx, const void * graph_key) {
-+static void ggml_cuda_graph_update_executable(ggml_backend_cuda_context * cuda_ctx, uint64_t graph_key) {
-     ggml_cuda_graph * graph = cuda_ctx->cuda_graph(graph_key);
- 
- #if CUDART_VERSION >= 12000
-@@ -4976,7 +5002,7 @@ static int ggml_cuda_try_fuse(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph
+@@ -5183,7 +5209,7 @@ static int ggml_cuda_try_fuse(ggml_backend_cuda_context * cuda_ctx, ggml_cgraph
      return 0;
  }
  
@@ -120,7 +116,7 @@ index af08267771cb..0b04ebf1e75e 100644
      bool graph_evaluated_or_captured = false;
  
      // flag used to determine whether it is an integrated_gpu
-@@ -5369,7 +5395,7 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
+@@ -5587,7 +5613,7 @@ static void ggml_cuda_graph_evaluate_and_capture(ggml_backend_cuda_context * cud
  }
  
  #ifdef USE_CUDA_GRAPH
@@ -128,8 +124,8 @@ index af08267771cb..0b04ebf1e75e 100644
 +static bool ggml_cuda_graph_set_enabled(ggml_backend_cuda_context * cuda_ctx, uint64_t graph_key) {
      ggml_cuda_graph * graph = cuda_ctx->cuda_graph(graph_key);
  
-     if (graph->graph == nullptr) {
-@@ -5392,7 +5418,7 @@ static enum ggml_status ggml_backend_cuda_graph_compute(ggml_backend_t backend,
+     if (graph->instances.empty()) {
+@@ -5610,7 +5636,7 @@ static enum ggml_status ggml_backend_cuda_graph_compute(ggml_backend_t backend,
  
      bool use_cuda_graph             = false;
      bool cuda_graph_update_required = false;
@@ -138,7 +134,7 @@ index af08267771cb..0b04ebf1e75e 100644
  
  #ifdef USE_CUDA_GRAPH
      graph_key = ggml_cuda_graph_get_key(cgraph);
-@@ -5587,7 +5613,7 @@ static void ggml_backend_cuda_graph_optimize(ggml_backend_t backend, ggml_cgraph
+@@ -5818,7 +5844,7 @@ static void ggml_backend_cuda_graph_optimize(ggml_backend_t backend, ggml_cgraph
      }
  
  #ifdef USE_CUDA_GRAPH
@@ -148,10 +144,10 @@ index af08267771cb..0b04ebf1e75e 100644
  #else
      const bool use_cuda_graph = false;
 diff --git a/src/llama-memory-hybrid-idx.cpp b/src/llama-memory-hybrid-idx.cpp
-index 21ec0b2fe1f3..ca3ec58b4ea6 100644
+index da17476..186de29 100644
 --- a/src/llama-memory-hybrid-idx.cpp
 +++ b/src/llama-memory-hybrid-idx.cpp
-@@ -65,10 +65,13 @@ llama_memory_hybrid_idx::llama_memory_hybrid_idx(
+@@ -62,10 +62,13 @@ llama_memory_hybrid_idx::llama_memory_hybrid_idx(
          hparams_idx.n_embd_head_k_mla_impl = model.hparams.indexer_head_size;
          hparams_idx.n_embd_head_v_mla_impl = model.hparams.indexer_head_size;
  
@@ -162,8 +158,8 @@ index 21ec0b2fe1f3..ca3ec58b4ea6 100644
 +        LLAMA_LOG_INFO("%s: creating indexer KV cache, size = %u cells, type = %s\n", __func__, kv_size, ggml_type_name(type_idx));
  
          return new llama_kv_cache(
--            model, hparams_idx, type_k, type_v, v_trans, offload, unified,
-+            model, hparams_idx, type_idx, type_v, v_trans, offload, unified,
-             kv_size, n_seq_max, n_pad, n_swa, swa_type,
+-            model, no_alloc, hparams_idx, type_k, type_v, v_trans, offload, unified,
++            model, no_alloc, hparams_idx, type_idx, type_v, v_trans, offload, unified,
+             kv_size, n_seq_max, n_swa, swa_type,
              nullptr, filter_idx, nullptr, nullptr, "idx_");
      }()) {}
