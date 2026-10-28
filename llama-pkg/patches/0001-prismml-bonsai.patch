@@ -67,6 +67,9 @@
 # contiguous src/dst (upstream's kernel is strided now); vecdotq uses
 # ggml_hip_perm. dspark/dfly arch, tensor and hparams hunks re-anchored after
 # upstream's deepseek41/engram additions. Drop none of this on refresh.
+# b11951: upstream moved the fit block of common_init_result into
+# common_fit_apply() (one indent level less); the hunk dropping
+# cparams_dft.n_rs_seq = 0 now targets that function.
 
 diff --git a/.github/workflows/build-android.yml b/.github/workflows/build-android.yml
 index 4db7c22..968928b 100644
@@ -1479,15 +1482,15 @@ diff --git a/common/common.cpp b/common/common.cpp
 index a4b4fea..8af633e 100644
 --- a/common/common.cpp
 +++ b/common/common.cpp
-@@ -1273,8 +1273,6 @@ common_init_result::common_init_result(common_params & params, bool model_only)
-         if (spec_mtp) {
-             cparams_dft.ctx_type = LLAMA_CONTEXT_TYPE_MTP;
-         }
--        cparams_dft.n_rs_seq = 0;
+@@ -1275,8 +1275,6 @@ void common_fit_apply(common_params & params, llama_model_params & mparams, llama_
+     if (spec_mtp) {
+         cparams_dft.ctx_type = LLAMA_CONTEXT_TYPE_MTP;
+     }
+-    cparams_dft.n_rs_seq = 0;
 -
-         const common_fit_extra_model extra = {
-             /*.path_model   =*/ params_dft.model.path.c_str(),
-             /*.mparams      =*/ &mparams_dft,
+     const common_fit_extra_model extra = {
+         /*.path_model   =*/ params_dft.model.path.c_str(),
+         /*.mparams      =*/ &mparams_dft,
 @@ -1729,6 +1727,18 @@ struct llama_context_params common_context_params_to_llama(const common_params &
      cparams.n_ctx             = params.n_ctx;
      cparams.n_seq_max         = params.n_parallel;
