@@ -12,7 +12,6 @@ This repository contains local Arch Linux package recipes and helper scripts for
 - `visual-studio-code/`: package recipe and desktop templates
 - `claude-desktop/`: package recipe
 - `llama-pkg/`: package recipe, model presets, benchmark notes, service files
-- `llama-pkg/patches/`: out-of-tree llama.cpp patches applied at build time
 
 ## Script Usage
 
@@ -38,14 +37,8 @@ This repository contains local Arch Linux package recipes and helper scripts for
 # Refresh llama preset file only
 ./scripts/llama-pkg/install config
 
-# Inspect / verify / regenerate the llama.cpp out-of-tree patches
-./scripts/llama-pkg/patches list
-./scripts/llama-pkg/patches check
-./scripts/llama-pkg/patches refresh
-
 # Optional cleanup (destructive, asks for confirmation)
 ./scripts/visual-studio-code/install cleanup
-./scripts/llama-pkg/install cleanup
 ```
 
 ## Claude Desktop
@@ -100,40 +93,3 @@ LLAMA_GPU_BACKEND=cuda ./scripts/llama-pkg/install
 # Pin CUDA architectures explicitly
 LLAMA_GPU_BACKEND=cuda LLAMA_CUDA_ARCH="86;89" ./scripts/llama-pkg/install
 ```
-
-## Llama Patches
-
-`llama-pkg/patches/` holds `patch -p1` diffs applied to the upstream tarball in
-`prepare()`, in filename order. They carry features that have not landed in
-llama.cpp master yet, so each one is meant to be dropped again later.
-
-Currently shipped:
-
-- `0001-prismml-bonsai.patch`: PrismML low-bit quant types and kernels for the
-  Bonsai-27B 1-bit / ternary GGUFs, from
-  [`PrismML-Eng/llama.cpp merge/upstream-20261011`](https://github.com/PrismML-Eng/llama.cpp/tree/merge/upstream-20261011)
-- `0002-prismml-fa-quant-kv-fix.patch`: PrismML #355, fixes out-of-bounds writes
-  in CUDA flash attention with a quantized KV cache on 3-4 token batches
-  (garbage `////` / `3333` output with `-ctk/-ctv q4_0|q8_0` on hybrid models)
-
-`LLAMA_PATCHES` selects what gets applied:
-
-```bash
-# Default: apply every patches/*.patch
-./scripts/llama-pkg/install
-
-# Stock upstream build, no patches
-LLAMA_PATCHES=off ./scripts/llama-pkg/install
-
-# Only some patches (names or globs, space- or comma-separated)
-LLAMA_PATCHES='0001-*' ./scripts/llama-pkg/install
-```
-
-A patch can also be parked by renaming it so it no longer ends in `.patch`.
-Once a patch is merged upstream, `prepare()` notices it is already in the
-tarball and skips it rather than failing the build.
-
-Patches are cut against a specific `bNNNNN` tag, so a version bump can make
-them stale; `./scripts/llama-pkg/update set <ver>` says so, and
-`./scripts/llama-pkg/patches refresh` regenerates them from their fork branch.
-See `llama-pkg/patches/README.md` for the patch header format.
