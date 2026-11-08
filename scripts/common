@@ -83,8 +83,8 @@ get_current() {
 # Initialize package environment variables.
 # Sets: PACKAGE_NAME, PKG_DIR, PKGBUILD
 # Parameters:
-#   $1 - Package name (e.g., "llama-cpp")
-#   $2 - Package directory name (e.g., "llama-pkg")
+#   $1 - Package name (e.g., "visual-studio-code")
+#   $2 - Package directory name (e.g., "visual-studio-code")
 init_package_env() {
     local package_name="$1"
     local pkg_dir_name="$2"
