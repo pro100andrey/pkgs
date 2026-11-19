@@ -164,7 +164,14 @@ main() {
 
     echo
     echo -n "Which package recipes do you want to bump? (e.g. 1 2 3, or 'all', or Enter to skip): "
-    read -r selection
+    local selection=""
+    # Read from the terminal even when stdin is redirected; on EOF (no tty,
+    # Ctrl-D) end the line and skip instead of dying silently under set -e.
+    if ! { [[ -r /dev/tty ]] && read -r selection </dev/tty; } 2>/dev/null &&
+        ! read -r selection; then
+        echo
+        exit 0
+    fi
 
     [[ -z "$selection" ]] && exit 0
 
